@@ -293,7 +293,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
     <div class="how">
       <div><kbd>Move the mouse</kbd><span>Thou seest through thine own eyes, and thy sword hand followeth the mouse. Sweep it hard across the screen and <b>through</b> thy foe. Speed and weight are what wound.</span></div>
       <div><kbd><span data-key="KeyW">W</span> <span data-key="KeyA">A</span> <span data-key="KeyS">S</span> <span data-key="KeyD">D</span> / arrows</kbd><span>Step in, fall back and circle. Thou always facest thy foe. Keep a little distance, so the blade landeth at full speed.</span></div>
-      <div><kbd>Right-click / Space</kbd><span>Hold it for the thrusting grip: point straight along thine arm, then drive the tip forward.</span></div>
+      <div><kbd>Right-click / Space</kbd><span>Hold it for the thrusting grip: point straight along thine arm, then drive the tip forward. A good thrust sticketh fast: keep holding and move the mouse to haul thy foe about, then let go to pull the blade free.</span></div>
       <div><kbd><span data-key="KeyC">C</span> / Ctrl</kbd><span>Drop low.</span></div>
       <div><kbd><span data-key="KeyE">E</span> / Tab</kbd><span>When several stand against thee, turn to face the next.</span></div>
       <div><kbd>Esc</kbd><span>Free the mouse and pause (in a fight with friends, the fight goeth on without thee). Click the field to take up thy sword again.</span></div>
@@ -406,7 +406,7 @@ const SEGS = [
   [SH_R, ELB_R, 0.055, 'arms', 0.5, true], [ELB_R, HAND_R, 0.05, 'arms', 0.45, true],
   [SH_L, ELB_L, 0.055, 'arms', 0.5, true], [ELB_L, HAND_L, 0.05, 'arms', 0.45, true]
 ];
-const SEVER_AT = 17;   // limb damage (before the zone multiplier) that takes a limb off with an edged weapon
+const SEVER_AT = 14;   // limb damage (before the zone multiplier) that takes a limb off with an edged weapon
 
 // Weapons. len: hand to tip. edge: fraction of the length (from the hand) where the striking part starts.
 // tip: mass carried at the tip (momentum, and how hard it is to stop). wrist: how strongly the wrist can steer it (N).
@@ -687,6 +687,7 @@ function chooseTarget(w, f) {
 
 function weaponHits(w, A, B) {
   if (!A.armed) return;
+  if (A.stuck && A.stuck.B === B) return;  // the blade is already in him
   const W = A.weapon, h = A.p[HAND_R], t = A.p[TIP];
   const e = lerpP(h, t, W.edge);
   const L = W.len, dir = [(t.x - h.x) / L, (t.y - h.y) / L, (t.z - h.z) / L];
@@ -709,7 +710,7 @@ function weaponHits(w, A, B) {
     const rz = hv[2] + (tv[2] - hv[2]) * u - (av[2] + (bv[2] - av[2]) * sb);
     const vn = rx * nx + ry * ny + rz * nz;
     const along = rx * dir[0] + ry * dir[1] + rz * dir[2];
-    const thrust = W.point && u > 0.85 && along > 3 && along > 0.75 * len3(rx, ry, rz);
+    const thrust = W.point && u > 0.8 && along > 2 && along > 0.6 * len3(rx, ry, rz);
     const speed = thrust ? along : vn;
     const armor = B.armor[ZONE_SLOT[sg.zone]].val;
     const block = stops(armor, W.kind, thrust);
@@ -717,15 +718,16 @@ function weaponHits(w, A, B) {
     const mEff = W.tip * u * u + W.grip + 1.2;
     if (vn > 0) {
       let after;
-      if (speed > 3 && !cool) {
+      if (speed > (thrust ? 2 : 3) && !cool) {
         const str = A.strength > 1 ? 1 + (A.strength - 1) * 0.5 : 1;
-        const base = W.dmg * (speed - 2.6) * (thrust ? 1.35 : 1) * str * (1 - block);
+        const base = thrust ? W.dmg * (speed - 1.4) * 2.4 * str * (1 - block) : W.dmg * (speed - 2.6) * str * (1 - block);
         const dmg = Math.max(0, base * sg.mult);
         A.cool[ck] = w.t + 0.3;
         const glance = block > 0.5 && W.kind !== 'blunt';
         after = glance ? -0.3 * vn : (thrust ? 0.1 * vn : 0.3 * vn);
         const chop = sg.cut && !glance && !thrust && W.kind !== 'blunt' && base >= SEVER_AT && B.alive;
         applyHit(w, A, B, { zone: sg.zone, dmg, armor, glance, thrust, x: cp.x + nx * d, y: cp.y + ny * d, z: cp.z + nz * d, nx, ny, nz, speed, chop });
+        if (thrust && !glance && dmg > 3 && !A.stuck && sg.zone !== 'head') { impale(w, A, B, si, sb, u); return; }
         // builds for strict portals (CrazyGames' PEGI 12) set SB_NO_SEVER: a limb-taking blow knocks the fighter flat instead
         if (chop && root.SB_NO_SEVER) knockDown(B, 1.4);
         else if (chop) { sever(w, B, sg); after = 0.6 * vn; }
@@ -758,6 +760,37 @@ function applyHit(w, A, B, hit) {
     if (B.hp <= 0) { B.hp = 0; out(w, B, 'beaten'); hit.kill = true; }
   }
   w.events.push(Object.assign({ type: 'hit', from: A, to: B }, hit));
+}
+
+// Impaling: a clean thrust that goeth in holdeth fast. Until the thrust grip is let go (or the blade is wrenched
+// out), the blade and the body are pinned together, so moving the blade draggeth and tosseth the body about.
+function impale(w, A, B, si, sb, u) {
+  A.stuck = { B, si, sb, u: Math.max(0.75, u - 0.1), t: 0 };
+  B.ctrl = Math.max(0.1, B.ctrl - 0.35);
+  const q = lerpP(B.p[B.segs[si].a], B.p[B.segs[si].b], sb);
+  w.events.push({ type: 'stick', from: A, to: B, x: q.x, y: q.y, z: q.z });
+}
+function holdImpale(A) {
+  const s = A.stuck, B = s.B, sg = B.segs[s.si], pa = B.p[sg.a], pb = B.p[sg.b];
+  const bp = lerpP(A.p[HAND_R], A.p[TIP], s.u), q = lerpP(pa, pb, s.sb);
+  const dx = bp.x - q.x, dy = bp.y - q.y, dz = bp.z - q.z;
+  // the body giveth way more than the arm: that is what letteth thee fling him
+  const kb = B.alive ? 0.6 : 0.8, kw = 1 - kb;
+  for (const [pt, wt] of sg.a === sg.b ? [[pa, 1]] : [[pa, 1 - s.sb], [pb, s.sb]]) { pt.x += dx * kb * wt; pt.y += dy * kb * wt; pt.z += dz * kb * wt; }
+  moveWeapon(A, s.u, -dx * kw, -dy * kw, -dz * kw);
+}
+function impaleRelease(w, A) {
+  const s = A.stuck; if (!s) return;
+  s.t += DT;
+  const B = s.B, sg = B.segs[s.si];
+  if (B.alive) { B.ctrl = Math.min(B.ctrl, 0.3); B.hp = Math.max(0.5, B.hp - 4 * DT); }
+  const q = lerpP(B.p[sg.a], B.p[sg.b], s.sb), bp = lerpP(A.p[HAND_R], A.p[TIP], s.u);
+  const gap = len3(bp.x - q.x, bp.y - q.y, bp.z - q.z);
+  if (!A.armed || sg.off || s.t > 5 || gap > 0.45 || (!A.input.thrust && s.t > 0.2)) {
+    A.stuck = null;
+    A.cool[B.idx * 100 + s.si] = w.t + 0.4;
+    w.events.push({ type: 'unstick', from: A, to: B, x: q.x, y: q.y, z: q.z });
+  }
 }
 
 function knockDown(f, t) { if (!f.alive) return; f.down = Math.max(f.down, t); f.ctrl = 0; }
@@ -839,9 +872,11 @@ function step(w) {
     stepFighter(f);
     control(f);
   }
+  for (const f of w.f) impaleRelease(w, f);
   for (const f of w.f) integrate(f);
   for (let it = 0; it < ITER; it++) {
     for (const f of w.f) constraints(f);
+    for (const f of w.f) if (f.stuck) holdImpale(f);
     if (it === ITER - 2) {
       for (let i = 0; i < fs.length; i++) for (let j = i + 1; j < fs.length; j++) {
         const A = fs[i], B = fs[j];
@@ -882,7 +917,7 @@ function makeAI(o) {
   const pick1 = (f, foe) => {
     const r = Math.random(), W = f.weapon;
     const head = foe.p[HEAD], chest = foe.p[NECK], knee = foe.p[KNEE_R];
-    if (W.point && r < 0.2 + ai.skill * 0.1) return { kind: 'thrust', wind: [-0.08, 0.05, -0.02], aim: chest, push: [0.6, 0, 0], dur: 0.38, wt: 0.3 };
+    if (W.point && r < 0.2 + ai.skill * 0.1) return { kind: 'thrust', wind: [-0.08, 0.05, -0.02], aim: chest, push: [0.9, 0, 0], dur: 0.5, wt: 0.3 };
     if (r < 0.45) return { kind: 'over', wind: [-0.05, 0.05, 0.5], aim: head, push: [0.4, 0, -0.5], dur: 0.42, wt: 0.32 };
     if (r < 0.7) return { kind: 'right', wind: [-0.05, 0.42, 0.15], aim: chest, push: [0.3, -0.8, 0], dur: 0.4, wt: 0.3 };
     if (r < 0.88) return { kind: 'left', wind: [0.05, -0.38, 0.22], aim: head, push: [0.3, 0.8, -0.1], dur: 0.4, wt: 0.3 };
@@ -948,7 +983,7 @@ function makeAI(o) {
 
 root.SB = { G, DT, ARENA, WEAPONS, ARMOR, SEGS, BONES, SEVER_AT,
   I: { HEAD, NECK, PELV, KNEE_R, FOOT_R, KNEE_L, FOOT_L, SH_R, ELB_R, HAND_R, SH_L, ELB_L, HAND_L, TIP },
-  makeFighter, makeWorld, makeAI, step, allies, knockDown, sever, vel, clamp, stops, local, frame, len3 };
+  makeFighter, makeWorld, makeAI, step, impale, allies, knockDown, sever, vel, clamp, stops, local, frame, len3 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 // Steel Bout: first-person 3D rendering (three.js), input, sound, menus and progression around sim.js.
@@ -1429,7 +1464,9 @@ const mailTex = canvasTex(64, 64, (g, w, h) => {
   for (let y = 0; y < h + 8; y += 8) for (let x = 0; x < w + 8; x += 8) { g.beginPath(); g.arc(x + ((y / 8) % 2) * 4, y, 3.3, 0, 6.29); g.stroke(); }
 }, 1);
 const MAIL = () => matCache.mail || (matCache.mail = new T.MeshStandardMaterial({ map: mailTex, metalness: 0.7, roughness: 0.5, color: '#D0D6DB' }));
-const STUMP = () => mat('#6A2E28', { roughness: 0.9 });
+// blood is on unless a strict portal build turns it off (SB_NO_BLOOD)
+const BLOOD = !window.SB_NO_BLOOD;
+const STUMP = () => mat(BLOOD ? '#8A1410' : '#6A2E28', { roughness: BLOOD ? 0.45 : 0.9 });
 const _up = new T.Vector3(0, 1, 0), _v = new T.Vector3(), _q = new T.Quaternion(), _x = new T.Vector3(), _y = new T.Vector3(), _z = new T.Vector3(), _mb = new T.Matrix4();
 const cylCache = {};
 function cylGeo(r1, r2) {
@@ -1573,14 +1610,19 @@ function updateFighterView(v, firstPerson) {
   const h = p[I.HAND_R], t = p[I.TIP], dir = new T.Vector3(t.x - h.x, t.y - h.y, t.z - h.z).normalize();
   const R = new T.Vector3(-F.z, 0, F.x), edge = new T.Vector3().crossVectors(dir, R).addScaledVector(new T.Vector3().crossVectors(dir, _up), 0.25);
   v.weapon.position.set(h.x, h.y, h.z); basis(v.weapon, dir, new T.Vector3().crossVectors(edge, dir));
-  // cut ends get a dark, clean cap on both sides (no gore)
+  // cut ends get a cap on both sides (red and bleeding when blood is on)
   while (v.stumps.length < f.stumps.length) {
     const s = f.stumps[v.stumps.length];
     const a = addMesh(v.grp, sphereGeo, STUMP()), b = addMesh(v.grp, sphereGeo, STUMP());
     a.scale.setScalar(0.055); b.scale.setScalar(0.055);
     v.stumps.push({ s, a, b });
   }
-  for (const st of v.stumps) { const a = p[st.s.at], b = p[st.s.piece]; st.a.position.set(a.x, a.y, a.z); st.b.position.set(b.x, b.y, b.z); }
+  for (const st of v.stumps) {
+    const a = p[st.s.at], b = p[st.s.piece]; st.a.position.set(a.x, a.y, a.z); st.b.position.set(b.x, b.y, b.z);
+    // a fresh stump spurteth for a few seconds, then drippeth
+    st.age = (st.age || 0) + 1 / 60;
+    if (BLOOD && st.age < 6 && Math.random() < (st.age < 2 ? 0.9 : 0.25)) { bleed(a.x, a.y, a.z, st.age < 2 ? 2 : 1, st.age < 2 ? 1.6 : 0.4); if (Math.random() < 0.4) bleed(b.x, b.y, b.z, 1, 0.3); }
+  }
 }
 // in first person, own limbs that pass right in front of the eyes are hidden so they never fill the view
 function segDist(c, a, b) {
@@ -1620,10 +1662,28 @@ function dust(x, y, z, n) {
   for (let i = 0; i < n && dustL.list.length < MAXP; i++)
     dustL.list.push({ x: x + (Math.random() - 0.5) * 0.4, y: Math.max(0.05, y), z: z + (Math.random() - 0.5) * 0.4, vx: (Math.random() - 0.5) * 0.8, vy: Math.random() * 0.5, vz: (Math.random() - 0.5) * 0.8, t: 0, life: 0.9 + Math.random() * 0.6, dust: true });
 }
+// Blood: drops that fly, fall and leave dark stains on the sand.
+const bloodL = pointsLayer('#7E0C0C', 0.05, false); bloodL.pts.material.opacity = 0.95;
+const STAIN_N = 240, stains = new T.InstancedMesh(new T.CircleGeometry(1, 10), new T.MeshStandardMaterial({ color: '#4A0806', roughness: 0.6, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }), STAIN_N);
+stains.count = 0; stains.renderOrder = 1; scene.add(stains);
+let stainAt = 0;
+const _sm = new T.Matrix4(), _sq = new T.Quaternion().setFromEuler(new T.Euler(-Math.PI / 2, 0, 0)), _sv = new T.Vector3(), _ss = new T.Vector3();
+function stain(x, z, r) {
+  _sm.compose(_sv.set(x, 0.006 + (stainAt % 7) * 0.0004, z), _sq, _ss.set(r, r * (0.7 + Math.random() * 0.5), 1));
+  stains.setMatrixAt(stainAt % STAIN_N, _sm); stainAt++; stains.count = Math.min(STAIN_N, stainAt); stains.instanceMatrix.needsUpdate = true;
+}
+function bleed(x, y, z, n, sp, nx, ny, nz) {
+  if (!BLOOD) return;
+  for (let i = 0; i < n && bloodL.list.length < MAXP; i++) {
+    const a = Math.random() * 6.28, b = Math.random() * 3.14, v = sp * (0.3 + Math.random());
+    bloodL.list.push({ x, y, z, vx: Math.cos(a) * Math.sin(b) * v + (nx || 0) * sp, vy: Math.cos(b) * v * 0.6 + 0.8 + (ny || 0) * sp, vz: Math.sin(a) * Math.sin(b) * v + (nz || 0) * sp, t: 0, life: 2, blood: true });
+  }
+}
+function clearBlood() { bloodL.list = []; stains.count = 0; stainAt = 0; }
 function updateLayer(L, dt) {
   for (const q of L.list) {
     q.t += dt;
-    if (q.dust) { q.vx *= 0.97; q.vz *= 0.97; } else { q.vy -= 9.8 * dt; if (q.y < 0.01) q.t = q.life; }
+    if (q.dust) { q.vx *= 0.97; q.vz *= 0.97; } else { q.vy -= 9.8 * dt; if (q.y < 0.01) { q.t = q.life; if (q.blood && Math.random() < 0.5) stain(q.x, q.z, 0.03 + Math.random() * 0.05); } }
     q.x += q.vx * dt; q.y += q.vy * dt; q.z += q.vz * dt;
   }
   L.list = L.list.filter(q => q.t < q.life);
@@ -1676,7 +1736,7 @@ function setFighters(list, me) {
   while (trails.length < list.length) trails.push(trailMesh());
   trails.forEach((t, i) => { t.visible = i < list.length; });
   for (const f of list) { f.lastTipSp = 0; f.lastWhoosh = 0; f.target = list.find(o => o !== f); f.voiceLow = Math.random() < 0.6; }
-  sparkL.list = []; dustL.list = []; pops = [];
+  sparkL.list = []; dustL.list = []; pops = []; clearBlood();
 }
 function newFighters(idle) {
   const fo = FOES[foeIdx];
@@ -1758,17 +1818,23 @@ function handleEvents() {
       if (e.armor > 0.3) { sparks(e.x, e.y, e.z, 5 + v * 16 | 0, 2 + v * 4); sfx.clang(v * (e.glance ? 0.8 : 0.6)); if (e.glance) sfx.scrape(v); }
       else { dust(e.x, e.y, e.z, 2); sfx.thud(v); }
       if (e.thrust && !e.glance) sfx.stab(clamp(v + 0.3, 0, 1));
+      if (!e.glance && e.dmg > 2) bleed(e.x, e.y, e.z, Math.min(40, 4 + e.dmg * 1.2 | 0), 1 + v * 2.5, e.nx * 1.5, e.ny * 1.5, e.nz * 1.5);
       if (e.dmg > 5 && fightT - (e.to.lastHurt || -9) > 0.4) { e.to.lastHurt = fightT; sfx.hurt(clamp(0.5 + e.dmg / 30, 0, 1) * (e.to === player ? 1 : 0.5 + earVol(e.to) * 0.5), e.to.voiceLow); }
       if (e.from.weapon.kind === 'blunt') sfx.thud(v);
       shake = Math.max(shake, (e.to === player ? 0.5 : 0.25) + e.dmg * 0.03);
       if (big) hitStop = Math.max(hitStop, 0.05 + e.dmg * 0.0015);
       cheer = Math.min(1, cheer + e.dmg * 0.02);
-      const word = e.chop || e.kill ? null : e.glance ? (e.speed > 7 ? 'Glanced off' : null) : e.thrust && e.dmg > 8 ? 'Run through!' : e.zone === 'head' && e.dmg > 10 ? 'Upon the head!' : e.dmg > 24 ? (e.from.weapon.kind === 'blunt' ? 'Crushed!' : 'Cloven!') : null;
+      const word = e.chop || e.kill ? null : e.glance ? (e.speed > 7 ? 'Glanced off' : null) : e.zone === 'head' && e.dmg > 10 ? 'Upon the head!' : e.dmg > 24 ? (e.from.weapon.kind === 'blunt' ? 'Crushed!' : 'Cloven!') : null;
       if (word) pop(e.x, e.y + 0.15, e.z, word, e.glance ? '#C9D2DA' : e.to === player ? '#E8857C' : '#FFE2A6');
       if (e.dmg > 10 && e.to.down > 0 && e.to.alive) pop(e.to.p[I.HEAD].x, e.to.p[I.HEAD].y + 0.3, e.to.p[I.HEAD].z, 'Laid low!', '#D7A441');
       if (e.kill) { slowMo = 1.4; sfx.roar(1); } else if (big) sfx.roar(0.4);
+    } else if (e.type === 'stick') {
+      sfx.stab(1); bleed(e.x, e.y, e.z, 18, 2.2);
+      if (e.from === player) pop(e.x, e.y + 0.2, e.z, 'Run through!', '#FFE2A6'); else if (e.to === player) pop(e.x, e.y + 0.2, e.z, 'Thou art pinned!', '#E8857C');
+    } else if (e.type === 'unstick') {
+      sfx.scrape(0.7); bleed(e.x, e.y, e.z, 26, 2.8);
     } else if (e.type === 'sever') {
-      sfx.chop(); sparks(e.x, e.y, e.z, 10, 3); dust(e.x, e.y, e.z, 4);
+      sfx.chop(); bleed(e.x, e.y, e.z, 45, 3.5); sparks(e.x, e.y, e.z, 10, 3); dust(e.x, e.y, e.z, 4);
       hitStop = Math.max(hitStop, 0.09); slowMo = Math.max(slowMo, 0.6); shake = Math.max(shake, 0.8); cheer = 1; sfx.roar(1);
       pop(e.x, e.y + 0.2, e.z, e.to === player ? 'Thy ' + PART_NAME[e.at] + '!' : 'Clean off!', e.to === player ? '#E8857C' : '#FFE2A6');
     }
@@ -2706,7 +2772,7 @@ function frame(now) {
     hideNearCamera(pv, fp);
     fighters.forEach((f, i) => updateTrail(trails[i], f));
     const pdt = mode === 'fight' ? dt * timeScale : dt;
-    updateLayer(sparkL, pdt); updateLayer(dustL, pdt);
+    updateLayer(sparkL, pdt); updateLayer(dustL, pdt); updateLayer(bloodL, pdt);
     for (const q of pops) q.t += dt;
     pops = pops.filter(q => q.t < 1.1);
     updateCrowd(clock);
