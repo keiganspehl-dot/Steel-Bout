@@ -2209,7 +2209,7 @@ function mpHost() {
   sfx.click(); mpSaveName(); mpLeave(true);
   mp.code = Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
   mpMsg('Opening the gates…', true);
-  const peer = mp.peer = new Peer(MP_PREFIX + mp.code, { debug: 0 });
+  const peer = mp.peer = new Peer(MP_PREFIX + mp.code, PEER_OPTS);
   peer.on('open', () => {
     Object.assign(mp, { on: true, role: 'host', myId: 'host', round: 0, score: {}, playing: false, nextBot: 0 });
     mp.lobby = [{ id: 'host', name: save.name, gear: gearOf(save.mpGear) }];
@@ -2303,16 +2303,24 @@ function mpRenderLobby() {
   $('mpBot').disabled = mp.lobby.length >= MP_MAX;
 }
 
+// Relay servers let players on different home, school or phone networks reach each other when a direct link is blocked.
+const PEER_OPTS = { debug: 0, config: { iceServers: [
+  { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  { urls: 'turn:eu-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+  { urls: 'turn:us-0.turn.peerjs.com:3478', username: 'peerjs', credential: 'peerjsp' },
+  { urls: ['turn:openrelay.metered.ca:80', 'turn:openrelay.metered.ca:443', 'turn:openrelay.metered.ca:443?transport=tcp'], username: 'openrelayproject', credential: 'openrelayproject' }
+] } };
 function mpJoin() {
   if (typeof Peer === 'undefined') return;
   const code = $('mpJoinCode').value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
   if (code.length !== 5) { mpMsg('A room code hath five letters.'); return; }
   sfx.click(); mpSaveName(); mpLeave(true);
   mpMsg('Seeking the fight…', true);
-  const peer = mp.peer = new Peer({ debug: 0 });
+  const peer = mp.peer = new Peer(PEER_OPTS);
   let found = false;
   const fail = text => { if (found) return; mpMsg(text); mpLeave(true); };
-  const timer = setTimeout(() => fail('No fight was found by that code. Check it with thy host.'), 12000);
+  // the broker answereth fast when no such room exists; a slow silence meaneth the two networks could not link up
+  const timer = setTimeout(() => fail('Thy host was found, but the link would not hold. Try again, or let the other one host.'), 25000);
   peer.on('open', () => {
     const conn = peer.connect(MP_PREFIX + code, { reliable: true, serialization: 'json' });
     mp.host = conn;
