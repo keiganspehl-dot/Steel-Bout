@@ -2484,7 +2484,8 @@ const PEER_OPTS = { debug: 0, config: { iceServers: [
 // ---------- Relay fallback ----------
 // When two home networks cannot link up directly (WebRTC), the fight goeth through a free public MQTT broker over a
 // secure WebSocket instead. A tiny MQTT 3.1.1 client: connect, subscribe and publish at QoS 0, and keep-alive pings.
-const RELAY_BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
+// public brokers; the shiftr.io one sitteth on the ordinary web port 443, which school and work networks seldom block
+const RELAY_BROKERS = ['wss://public.cloud.shiftr.io|public|public', 'wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const RELAY_TOPIC = 'steelbout/v1/';
 function mqttLen(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return o; }
 function mqttStr(str) { const b = new TextEncoder().encode(str); return [b.length >> 8, b.length & 255, ...b]; }
@@ -2513,12 +2514,13 @@ function relayConnect(onMsg, done) {
     if (m && m._q) { if (seen.has(m._q)) return; seen.add(m._q); seenQ.push(m._q); if (seenQ.length > 600) seen.delete(seenQ.shift()); }
     onMsg(m);
   };
-  for (const url of RELAY_BROKERS) {
+  for (const entry of RELAY_BROKERS) {
+    const [url, user, pass] = entry.split('|');
     const s = { ok: false, buf: new Uint8Array(0), ws: null };
     try { s.ws = new WebSocket(url, ['mqtt']); } catch (e) { if (--pending === 0) finish(false); continue; }
     socks.push(s); const ws = s.ws; ws.binaryType = 'arraybuffer';
     const to = setTimeout(() => { if (!s.ok) { try { ws.close(); } catch (e) {} } }, 6000);
-    ws.onopen = () => ws.send(mqttPacket(0x10, [...mqttStr('MQTT'), 4, 2, 0, 60, ...mqttStr('sb' + Math.random().toString(36).slice(2, 12))]));
+    ws.onopen = () => ws.send(mqttPacket(0x10, [...mqttStr('MQTT'), 4, user ? 0xC2 : 2, 0, 60, ...mqttStr('sb' + Math.random().toString(36).slice(2, 12)), ...(user ? [...mqttStr(user), ...mqttStr(pass || '')] : [])]));
     ws.onmessage = e => {
       const d = new Uint8Array(e.data), nb = new Uint8Array(s.buf.length + d.length); nb.set(s.buf); nb.set(d, s.buf.length); s.buf = nb;
       for (;;) {
@@ -2559,7 +2561,7 @@ function relayHost() {
     }
     c.seen = performance.now();
     if (m.d) mpHostRecv(c, m.d);
-  }, R => {});
+  }, R => { if (!R && mp.code === code) mpMsg('The relay could not be reached from here, so friends on other networks may not find thee. Same-house friends can still join.', true); });
   mp.relay.sub(RELAY_TOPIC + code + '/h');
   // keep-alives to relayed players, and drop the ones gone silent
   mp.relayTick = setInterval(() => {
