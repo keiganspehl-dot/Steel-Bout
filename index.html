@@ -1300,10 +1300,20 @@ const scene = new T.Scene();
 const HAZE = new T.Color('#D9AE7C');
 scene.fog = new T.Fog(HAZE, 18, 70);
 const camera = new T.PerspectiveCamera(72, 1, 0.05, 200);
-let W = 0, H = 0, DPR = 1;
+let W = 0, H = 0, DPR = 1, lowGfx = false, slowT = 0;
+// slow machines (school Chromebooks): when frames run long for a while, drop shadows and render at plain resolution
+function watchFrameRate(rawDt) {
+  if (lowGfx || TEST || document.hidden) return;
+  slowT = rawDt > 0.028 ? slowT + rawDt : Math.max(0, slowT - rawDt * 0.5);
+  if (slowT > 2.5) {
+    lowGfx = true; renderer.shadowMap.enabled = false;
+    scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
+    resize();
+  }
+}
 function resize() {
   // the play area is the body, which CSS caps at 2:1 on very wide windows (Playgama requirement)
-  W = document.body.clientWidth || window.innerWidth; H = document.body.clientHeight || window.innerHeight; DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = document.body.clientWidth || window.innerWidth; H = document.body.clientHeight || window.innerHeight; DPR = Math.min(window.devicePixelRatio || 1, lowGfx ? 1 : 2);
   renderer.setPixelRatio(DPR); renderer.setSize(W, H, false);
   canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
   fx.width = Math.round(W * DPR); fx.height = Math.round(H * DPR); fx.style.width = W + 'px'; fx.style.height = H + 'px';
@@ -2755,8 +2765,22 @@ function mpUpdate(dt) {
       while (mp.predAcc >= DT) { SB.predict(world, player); mp.predAcc -= DT; }
     }
     const k = Math.min(1, dt * 16), kOwn = Math.min(1, dt * 0.8);
+    // everyone else is drawn a little in the past, sliding evenly between two snapshots, so uneven arrivals do not stutter
+    const back = performance.now() - Math.min(250, (mp.snapGap || 50) * 1.6 + 15);
+    for (const f of fighters) {
+      if ((f === player && !mp.watching) || !f.hist || f.hist.length < 2) continue;
+      let i = f.hist.length - 1; while (i > 0 && f.hist[i - 1].t > back) i--;
+      const A = f.hist[Math.max(0, i - 1)], B = f.hist[i], u = B.t > A.t ? clamp((back - A.t) / (B.t - A.t), 0, 1) : 1;
+      for (let j = 0; j < f.p.length; j++) {
+        const q = f.p[j], o = j * 3; if (o + 2 >= B.pos.length) break;
+        const x = A.pos[o] + (B.pos[o] - A.pos[o]) * u, y = A.pos[o + 1] + (B.pos[o + 1] - A.pos[o + 1]) * u, z = A.pos[o + 2] + (B.pos[o + 2] - A.pos[o + 2]) * u;
+        const s = DT / Math.max(dt, 1e-3);
+        q.px = x - (x - q.x) * s; q.py = y - (y - q.y) * s; q.pz = z - (z - q.z) * s; q.x = x; q.y = y; q.z = z;
+      }
+      f.smoothed = true;
+    }
     for (const f of fighters) for (const q of f.p) {
-      if (q.tx == null) continue;
+      if (q.tx == null || (f.smoothed && f.hist && f.hist.length >= 2 && !(f === player && !mp.watching))) continue;
       if (f === player && !mp.watching && player.alive && player.down <= 0 && Math.abs(q.tx - q.x) + Math.abs(q.tz - q.z) < 0.8) {
         q.x += (q.tx - q.x) * kOwn; q.y += (q.ty - q.y) * kOwn; q.z += (q.tz - q.z) * kOwn; q.px += (q.tx - q.px) * kOwn; q.py += (q.ty - q.py) * kOwn; q.pz += (q.tz - q.pz) * kOwn;
         continue;
@@ -2794,8 +2818,12 @@ function mpApplySnap(d) {
     if (e.type === 'sever' && to && to.segs[e.seg] && !to.segs[e.seg].off) { const tmp = { events: [] }; SB.sever(tmp, to, to.segs[e.seg]); }
     world.events.push(Object.assign({}, e, { to, from }));
   }
+  const now = performance.now();
+  if (mp.lastSnapAt) mp.snapGap = (mp.snapGap || 50) * 0.9 + Math.min(300, now - mp.lastSnapAt) * 0.1;
+  mp.lastSnapAt = now;
   d.f.forEach((a, i) => {
     const f = fighters[i], pos = a[0];
+    if (f !== player || mp.watching) { (f.hist || (f.hist = [])).push({ t: now, pos }); if (f.hist.length > 12) f.hist.shift(); }
     for (let j = 0; j * 3 < pos.length; j++) {
       const q = f.p[j]; if (!q) break;
       if (q.tx == null) { q.x = q.px = pos[j * 3]; q.y = q.py = pos[j * 3 + 1]; q.z = q.pz = pos[j * 3 + 2]; }
@@ -3004,7 +3032,8 @@ function cgReady(cg) {
 let last = performance.now();
 const _p = new T.Vector3();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const rawDt = (now - last) / 1000, dt = Math.min(0.05, rawDt); last = now;
+  if (rawDt < 0.5 && (mode === 'fight' || mode === 'mp')) watchFrameRate(rawDt);
   if (!platformPaused) {
     clock += dt;
     if (mode === 'fight' || (mode === 'pause' && mp.on)) updateFight(dt);
