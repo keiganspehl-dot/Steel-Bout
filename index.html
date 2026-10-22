@@ -219,6 +219,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
   <div class="cc">
     <svg viewBox="0 0 60 80" class="ico"><rect x="12" y="10" width="36" height="58" rx="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M30 10 h0 a18 18 0 0 1 18 18 v4 h-18 z" fill="#D7A441"/><line x1="30" y1="10" x2="30" y2="32" stroke="currentColor" stroke-width="4"/></svg>
     <b>Thrust</b><span>hold right-click or <kbd>Space</kbd></span>
+    <b>Flip blade</b><span>left-click (or hold <kbd>F</kbd>) to turn the sword flat and sideways</span>
   </div>
   <div class="cc"><div class="keys one"><kbd>Esc</kbd></div><b>Pause</b><span>and free the mouse</span></div>
   <div class="cct">Click to fight</div>
@@ -577,7 +578,10 @@ function control(f) {
     const bx = ax * cb + (-kz * ay) * sb + kx * dot * (1 - cb);
     const by = ay * cb + (kz * ax - kx * az) * sb;
     const bz = az * cb + (kx * ay) * sb + kz * dot * (1 - cb);
-    const L = W.len, dt = { x: h.x + bx * L, y: h.y + by * L, z: h.z + bz * L };
+    let ux = bx, uy = by, uz = bz;
+    // flipped grip: the blade lieth flat across the body (sideways) instead of standing upright
+    if (inp.flip && !inp.thrust) { ux = ax * 0.35 - Rx * 0.94; uy = ay * 0.2; uz = az * 0.35 - Rz * 0.94; const ul = len3(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul; }
+    const L = W.len, dt = { x: h.x + ux * L, y: h.y + uy * L, z: h.z + uz * L };
     const [tvx, tvy, tvz] = vel(tip);
     const wmax = W.wrist * (0.4 + 0.6 * c) * (inp.thrust ? 1.3 : 1);
     let wx = 900 * (dt.x - tip.x) - 22 * (tvx - hvx), wy = 900 * (dt.y - tip.y) - 22 * (tvy - hvy), wz = 900 * (dt.z - tip.z) - 22 * (tvz - hvz);
@@ -1790,6 +1794,7 @@ function playerInput() {
   inp.move = (fwd ? 1 : 0) - (back ? 1 : 0);
   inp.strafe = (R ? 1 : 0) - (L ? 1 : 0);
   inp.crouch = !!(keys.KeyC || keys.ControlLeft || keys.ControlRight || touch.crouch);
+  inp.flip = !!(mouse.flip || keys.KeyF);
   inp.thrust = !!(mouse.right || keys.Space || keys.ShiftLeft || keys.ShiftRight || touch.thrust);
   player.aim = aimLocal();
   if (mode === 'pause') { inp.move = 0; inp.strafe = 0; inp.crouch = false; inp.thrust = false; player.aim = [0.35, -0.08, 0]; }
@@ -2316,7 +2321,7 @@ function mpHostRecv(conn, d) {
     if (!f || !Array.isArray(d.a)) return;
     const n = (v, a, b) => clamp(+v || 0, a, b);
     f.aim = [n(d.a[0], 0, 0.6), n(d.a[1], -0.6, 0.6), n(d.a[2], -0.6, 0.6)];
-    Object.assign(f.input, { thrust: !!d.th, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
+    Object.assign(f.input, { thrust: !!d.th, flip: !!d.fl, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
     f.lock = Number.isInteger(d.lk) && fighters[d.lk] ? d.lk : null;
   }
 }
@@ -2633,7 +2638,7 @@ function mpUpdate(dt) {
     if (mp.sendT >= 1 / 30 && !mp.watching) {
       mp.sendT = 0;
       const inp = player.input, a = player.aim;
-      mpSend(mp.host, { t: 'in', a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
+      mpSend(mp.host, { t: 'in', a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
     }
     const k = Math.min(1, dt * 16);
     for (const f of fighters) for (const q of f.p) {
@@ -2777,6 +2782,7 @@ fx.addEventListener('pointerdown', e => {
   sfx.init();
   if (e.pointerType === 'touch') { usingTouch = true; touch.aim = e.pointerId; if (mode === 'fight') { $('touch').classList.remove('hidden'); document.body.classList.add('touch'); } }
   if (e.button === 2) mouse.right = true;
+  if (e.button === 0 && e.pointerType === 'mouse' && mode === 'fight' && document.pointerLockElement && $('controls').classList.contains('hidden')) { mouse.flip = !mouse.flip; sfx.click(); }
   if (!document.pointerLockElement) { mouse.x = e.clientX - padX(); mouse.y = e.clientY; }
   mouse.on = true;
   if (mode === 'fight' && e.pointerType === 'mouse') { lockPointer(); if (!$('controls').classList.contains('hidden') && e.button === 0) controlsCard(false); }
