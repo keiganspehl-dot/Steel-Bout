@@ -1,0 +1,2 @@
+{ "name": "steel-bout-server", "private": true, "main": "server.js", "scripts": { "start": "node server.js" },
+  "dependencies": { "aedes": "0.51.3", "websocket-stream": "5.5.2" } }

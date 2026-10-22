@@ -2494,8 +2494,8 @@ const PEER_OPTS = { debug: 0, config: { iceServers: [
 // ---------- Relay fallback ----------
 // When two home networks cannot link up directly (WebRTC), the fight goeth through a free public MQTT broker over a
 // secure WebSocket instead. A tiny MQTT 3.1.1 client: connect, subscribe and publish at QoS 0, and keep-alive pings.
-// public brokers; the shiftr.io one sitteth on the ordinary web port 443, which school and work networks seldom block
-const RELAY_BROKERS = ['wss://public.cloud.shiftr.io|public|public', 'wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
+// our own Fly.io server first, then public brokers; the shiftr.io one sitteth on the ordinary web port 443, which school and work networks seldom block
+const RELAY_BROKERS = ['wss://steel-bout.fly.dev/mqtt', 'wss://public.cloud.shiftr.io|public|public', 'wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081'];
 const RELAY_TOPIC = 'steelbout/v1/';
 function mqttLen(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return o; }
 function mqttStr(str) { const b = new TextEncoder().encode(str); return [b.length >> 8, b.length & 255, ...b]; }
