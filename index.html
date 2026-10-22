@@ -2281,14 +2281,18 @@ function mpHost() {
   mp.code = Array.from({ length: 5 }, () => CODE_CHARS[(Math.random() * CODE_CHARS.length) | 0]).join('');
   mpMsg('Opening the gates…', true);
   const peer = mp.peer = new Peer(MP_PREFIX + mp.code, PEER_OPTS);
-  peer.on('open', () => {
+  const openRoom = () => {
+    if (mp.on || mp.peer !== peer) return;
     Object.assign(mp, { on: true, role: 'host', myId: 'host', round: 0, score: {}, playing: false, nextBot: 0 });
     mp.lobby = [{ id: 'host', name: save.name, gear: gearOf(save.mpGear) }];
     mpMsg('');
     $('mpStart').classList.add('hidden'); $('mpLobby').classList.remove('hidden');
     mpRenderLobby(); cgInvite(mp.code);
     relayHost();
-  });
+  };
+  peer.on('open', openRoom);
+  // a direct-link server that will not answer doth not stop the room: it openeth on the relay alone
+  setTimeout(openRoom, 6000);
   peer.on('connection', conn => {
     conn.on('data', d => mpHostRecv(conn, d));
     conn.on('close', () => mpDrop(conn.peer));
@@ -2297,7 +2301,7 @@ function mpHost() {
   peer.on('disconnected', () => { try { peer.reconnect(); } catch (e) {} });
   peer.on('error', err => {
     if (err && err.type === 'unavailable-id') { mpHost(); return; }
-    if (!mp.on) { mpMsg('The gates would not open. Check thy connection and try again.'); mpLeave(true); }
+    if (!mp.on) openRoom();
   });
 }
 function mpHostRecv(conn, d) {
@@ -2392,53 +2396,60 @@ function mqttLen(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128
 function mqttStr(str) { const b = new TextEncoder().encode(str); return [b.length >> 8, b.length & 255, ...b]; }
 function mqttPacket(type, body) { return new Uint8Array([type, ...mqttLen(body.length), ...body]); }
 function relayConnect(onMsg, done) {
-  let i = 0, ws = null, ok = false, buf = new Uint8Array(0), ping = 0, pid = 1;
-  const subs = [];
+  // every broker is tried at once and kept: two players whose networks each reach a different broker still meet,
+  // because everything is published on all of them and duplicates are dropped by their tag
+  const me = Math.random().toString(36).slice(2, 10), subs = [], socks = [], seen = new Set(), seenQ = [];
+  let n = 0, pid = 1, called = false, closed = false, ping = 0, pending = RELAY_BROKERS.length;
+  const enc = new TextEncoder(), dec = new TextDecoder();
+  const subPkt = topic => mqttPacket(0x82, [pid >> 8, pid++ & 255, ...mqttStr(topic), 0]);
+  const finish = ok => { if (called) return; called = true; done(ok ? R : null); };
   const R = {
-    sub(topic) { subs.push(topic); if (ok) ws.send(mqttPacket(0x82, [pid >> 8, pid++ & 255, ...mqttStr(topic), 0])); },
+    sub(topic) { subs.push(topic); for (const s of socks) if (s.ok) s.ws.send(subPkt(topic)); },
     pub(topic, obj) {
-      if (!ok || ws.readyState !== 1) return;
-      const payload = new TextEncoder().encode(JSON.stringify(obj));
-      const body = new Uint8Array([...mqttStr(topic)].length + payload.length);
-      body.set(mqttStr(topic)); body.set(payload, mqttStr(topic).length);
+      const payload = enc.encode(JSON.stringify(Object.assign({ _q: me + (n++) }, obj))), t = mqttStr(topic);
+      const body = new Uint8Array(t.length + payload.length); body.set(t); body.set(payload, t.length);
       const head = [0x30, ...mqttLen(body.length)], pkt = new Uint8Array(head.length + body.length);
-      pkt.set(head); pkt.set(body, head.length); ws.send(pkt);
+      pkt.set(head); pkt.set(body, head.length);
+      for (const s of socks) if (s.ok && s.ws.readyState === 1) { try { s.ws.send(pkt); } catch (e) {} }
     },
-    close() { clearInterval(ping); ok = false; if (ws) { try { ws.send(new Uint8Array([0xE0, 0])); ws.close(); } catch (e) {} } ws = null; },
-    get ok() { return ok; }
+    close() { closed = true; clearInterval(ping); for (const s of socks) { try { s.ws.send(new Uint8Array([0xE0, 0])); s.ws.close(); } catch (e) {} s.ok = false; } },
+    get ok() { return socks.some(s => s.ok); }
   };
-  const read = () => {
-    for (;;) {
-      if (buf.length < 2) return;
-      let len = 0, mul = 1, k = 1, b;
-      do { if (k >= buf.length) return; b = buf[k++]; len += (b & 127) * mul; mul *= 128; } while (b & 128);
-      if (buf.length < k + len) return;
-      const type = buf[0], body = buf.subarray(k, k + len); buf = buf.slice(k + len);
-      if ((type & 0xF0) === 0x20) { ok = true; for (const t of subs) ws.send(mqttPacket(0x82, [pid >> 8, pid++ & 255, ...mqttStr(t), 0])); ping = setInterval(() => { try { ws.send(new Uint8Array([0xC0, 0])); } catch (e) {} }, 20000); done(R); }
-      else if ((type & 0xF0) === 0x30) {
-        const tl = (body[0] << 8) | body[1], topic = new TextDecoder().decode(body.subarray(2, 2 + tl));
-        const off = 2 + tl + ((type & 6) ? 2 : 0);
-        try { onMsg(topic, JSON.parse(new TextDecoder().decode(body.subarray(off)))); } catch (e) {}
+  const got = m => {
+    if (m && m._q) { if (seen.has(m._q)) return; seen.add(m._q); seenQ.push(m._q); if (seenQ.length > 600) seen.delete(seenQ.shift()); }
+    onMsg(m);
+  };
+  for (const url of RELAY_BROKERS) {
+    const s = { ok: false, buf: new Uint8Array(0), ws: null };
+    try { s.ws = new WebSocket(url, ['mqtt']); } catch (e) { if (--pending === 0) finish(false); continue; }
+    socks.push(s); const ws = s.ws; ws.binaryType = 'arraybuffer';
+    const to = setTimeout(() => { if (!s.ok) { try { ws.close(); } catch (e) {} } }, 6000);
+    ws.onopen = () => ws.send(mqttPacket(0x10, [...mqttStr('MQTT'), 4, 2, 0, 60, ...mqttStr('sb' + Math.random().toString(36).slice(2, 12))]));
+    ws.onmessage = e => {
+      const d = new Uint8Array(e.data), nb = new Uint8Array(s.buf.length + d.length); nb.set(s.buf); nb.set(d, s.buf.length); s.buf = nb;
+      for (;;) {
+        const buf = s.buf; if (buf.length < 2) return;
+        let len = 0, mul = 1, k = 1, b;
+        do { if (k >= buf.length) return; b = buf[k++]; len += (b & 127) * mul; mul *= 128; } while (b & 128);
+        if (buf.length < k + len) return;
+        const type = buf[0], body = buf.subarray(k, k + len); s.buf = buf.slice(k + len);
+        if ((type & 0xF0) === 0x20) { if (closed) return; s.ok = true; clearTimeout(to); for (const t of subs) ws.send(subPkt(t)); finish(true); }
+        else if ((type & 0xF0) === 0x30) {
+          const tl = (body[0] << 8) | body[1], off = 2 + tl + ((type & 6) ? 2 : 0);
+          try { got(JSON.parse(dec.decode(body.subarray(off)))); } catch (e) {}
+        }
       }
-    }
-  };
-  const tryNext = () => {
-    if (ok || i >= RELAY_BROKERS.length) { if (!ok) done(null); return; }
-    let sock; try { sock = new WebSocket(RELAY_BROKERS[i++], ['mqtt']); } catch (e) { tryNext(); return; }
-    ws = sock; sock.binaryType = 'arraybuffer';
-    const t = setTimeout(() => { if (!ok) { try { sock.close(); } catch (e) {} } }, 5000);
-    sock.onopen = () => sock.send(mqttPacket(0x10, [...mqttStr('MQTT'), 4, 2, 0, 60, ...mqttStr('sb' + Math.random().toString(36).slice(2, 12))]));
-    sock.onmessage = e => { const d = new Uint8Array(e.data), n = new Uint8Array(buf.length + d.length); n.set(buf); n.set(d, buf.length); buf = n; read(); };
-    sock.onclose = () => { clearTimeout(t); if (!ok && ws === sock) tryNext(); else if (ok && ws === sock) { ok = false; clearInterval(ping); R.onclose && R.onclose(); } };
-    sock.onerror = () => {};
-  };
-  tryNext();
+    };
+    ws.onclose = () => { clearTimeout(to); const was = s.ok; s.ok = false; if (!was && --pending === 0 && !called) finish(false); };
+    ws.onerror = () => {};
+  }
+  ping = setInterval(() => { for (const s of socks) if (s.ok) { try { s.ws.send(new Uint8Array([0xC0, 0])); } catch (e) {} } }, 20000);
   return R;
 }
 // host side: every room listeneth on the relay too, and each relayed player getteth a stand-in for a PeerJS connection
 function relayHost() {
   const code = mp.code, conns = new Map();
-  mp.relay = relayConnect((topic, m) => {
+  mp.relay = relayConnect(m => {
     if (!m || typeof m.f !== 'string' || mp.code !== code) return;
     const id = 'r_' + m.f.replace(/[^a-z0-9]/gi, '').slice(0, 16);
     let c = conns.get(id);
@@ -2469,7 +2480,7 @@ function relayJoin(code, fail, onWelcome) {
   const me = Math.random().toString(36).slice(2, 12);
   let last = performance.now(), welcomed = false;
   mpMsg('Trying the long road through a relay…', true);
-  const R = mp.relay = relayConnect((topic, d) => {
+  const R = mp.relay = relayConnect(d => {
     last = performance.now();
     if (d && d.t === 'welcome' && !welcomed) { welcomed = true; onWelcome(); }
     mpClientRecv(d);
@@ -2480,11 +2491,12 @@ function relayJoin(code, fail, onWelcome) {
   });
   R.sub(RELAY_TOPIC + code + '/c/' + me);
   R.bye = () => R.pub(RELAY_TOPIC + code + '/h', { f: me, bye: 1 });
-  setTimeout(() => { if (!welcomed && mp.relay === R) fail('No fight was found by that code. Check it with thy host, and that their game is still open.'); }, 9000);
+  setTimeout(() => { if (!welcomed && mp.relay === R) fail('No fight was found by that code. Check it with thy host, and that their game is still open.'); }, 14000);
   mp.relayTick = setInterval(() => {
     if (mp.relay !== R) return;
     if (welcomed && performance.now() - last > 9000) { if (mp.on) mpHostGone(); return; }
     if (welcomed) mpSend(mp.host, { t: 'ka' });
+    else if (mp.host && R.ok) mpSend(mp.host, { t: 'hello', name: save.name, gear: gearOf(save.mpGear) });  // the host may have been slow to listen
   }, 2000);
 }
 function mpJoin() {
