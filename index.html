@@ -220,7 +220,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
   </div>
   <div class="cc">
     <svg viewBox="0 0 60 80" class="ico"><rect x="12" y="10" width="36" height="58" rx="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M30 10 h0 a18 18 0 0 1 18 18 v4 h-18 z" fill="#D7A441"/><line x1="30" y1="10" x2="30" y2="32" stroke="currentColor" stroke-width="4"/></svg>
-    <b>Thrust</b><span>hold right-click or <kbd>Space</kbd></span>
+    <b>Thrust</b><span>hold <kbd data-key="KeyE">E</kbd> or <kbd>Space</kbd></span>
   </div>
   <div class="cc"><div class="keys one"><kbd>LMB</kbd></div><b>Flip</b><span>turn the point out sideways, for cuts at the neck</span></div>
   <div class="cc"><div class="keys one"><kbd data-key="ShiftLeft">Shift</kbd></div><b>Run</b><span>spendeth breath (the gold bar)</span></div>
@@ -298,9 +298,9 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
     <div class="how">
       <div><kbd>Move the mouse</kbd><span>Thou seest through thine own eyes, and thy sword hand followeth the mouse. Sweep it hard across the screen and <b>through</b> thy foe. Speed and weight are what wound.</span></div>
       <div><kbd><span data-key="KeyW">W</span> <span data-key="KeyA">A</span> <span data-key="KeyS">S</span> <span data-key="KeyD">D</span> / arrows</kbd><span>Step in, fall back and circle. Thou always facest thy foe. Keep a little distance, so the blade landeth at full speed.</span></div>
-      <div><kbd>Right-click / Space</kbd><span>Hold it for the thrusting grip: point straight along thine arm, then drive the tip forward. A good thrust sticketh fast: keep holding and move the mouse to haul thy foe about, then let go to pull the blade free.</span></div>
+      <div><kbd><span data-key="KeyE">E</span> / Space</kbd><span>Hold it for the thrusting grip: point straight along thine arm, then drive the tip forward. A good thrust sticketh fast: keep holding and move the mouse to haul thy foe about, then let go to pull the blade free.</span></div>
       <div><kbd><span data-key="KeyC">C</span> / Ctrl</kbd><span>Drop low.</span></div>
-      <div><kbd><span data-key="KeyE">E</span> / Tab</kbd><span>When several stand against thee, turn to face the next.</span></div>
+      <div><kbd><span data-key="KeyR">R</span> / Tab</kbd><span>When several stand against thee, turn to face the next.</span></div>
       <div><kbd>Esc</kbd><span>Free the mouse and pause (in a fight with friends, the fight goeth on without thee). Click the field to take up thy sword again.</span></div>
     </div>
     <p style="font-size:15px;opacity:.85;margin-top:-4px">A blow to the head woundeth worst. A swift cut from sword or axe may take off an arm or a leg, and whoso loseth his sword arm or a leg must yield. Cuts glance off good armour, so bring a mace or poleaxe against a knight. Put thy blade in the way to parry.</p>
@@ -423,6 +423,14 @@ const WEAPONS = {
   axe:       { name:'Bearded Axe',   len:0.86, edge:0.76, tip:1.05, grip:0.4, wrist:85,  dmg:2.5, kind:'chop',  point:false, hands:1, price:170 },
   longsword: { name:'Longsword',     len:1.22, edge:0.2,  tip:0.68, grip:0.6, wrist:125, dmg:1.7, kind:'cut',   point:true,  hands:2, price:300 },
   spear:     { name:'Boar Spear',    len:1.55, edge:0.86, tip:1.3,  grip:0.6, wrist:120, dmg:2.0, kind:'cut',   point:true,  hands:2, price:240 },
+  dagger:    { name:'Rondel Dagger', len:0.42, edge:0.3,  tip:0.25, grip:0.15,wrist:45,  dmg:1.5, kind:'cut',   point:true,  hands:1, price:60,  look:'sword' },
+  falchion:  { name:'Falchion',      len:0.85, edge:0.3,  tip:0.55, grip:0.4, wrist:70,  dmg:2.0, kind:'chop',  point:false, hands:1, price:120, look:'sword', broad:1.8 },
+  hammer:    { name:'War Hammer',    len:0.8,  edge:0.8,  tip:1.1,  grip:0.4, wrist:80,  dmg:2.8, kind:'blunt', point:false, hands:1, price:200, look:'hammer' },
+  estoc:     { name:'Estoc',         len:1.2,  edge:0.25, tip:0.6,  grip:0.6, wrist:115, dmg:1.5, kind:'cut',   point:true,  hands:2, price:260, look:'sword', thin:0.5 },
+  morningstar:{ name:'Morning Star', len:0.9,  edge:0.78, tip:1.2,  grip:0.4, wrist:85,  dmg:3.2, kind:'blunt', point:false, hands:1, price:280, look:'mace' },
+  greataxe:  { name:'Dane Axe',      len:1.4,  edge:0.82, tip:1.45, grip:0.7, wrist:135, dmg:2.9, kind:'chop',  point:false, hands:2, price:380, look:'axe' },
+  greatsword:{ name:'Greatsword',    len:1.5,  edge:0.2,  tip:0.9,  grip:0.75,wrist:145, dmg:2.1, kind:'cut',   point:true,  hands:2, price:420, look:'sword', broad:1.3 },
+  halberd:   { name:'Halberd',       len:1.85, edge:0.84, tip:1.8,  grip:0.85,wrist:155, dmg:2.5, kind:'chop',  point:true,  hands:2, price:520, look:'poleaxe' },
   poleaxe:   { name:'Poleaxe',       len:1.7,  edge:0.84, tip:1.7,  grip:0.8, wrist:150, dmg:2.3, kind:'chop',  point:true,  hands:2, price:480 }
 };
 // Armour pieces by slot. val: how much of a cut it stops (0..1). kg slows walking a little.
@@ -981,7 +989,7 @@ function makeAI(o) {
     const gap = Math.hypot(foe.p[PELV].x - f.p[PELV].x, foe.p[PELV].z - f.p[PELV].z);
     inp.kick = foe.alive && gap < 0.95 && Math.random() < dt * (0.3 + ai.aggro * 0.6);
     inp.run = gap > 3.5 && f.stam > 0.5;
-    const want = W.len + 0.55;
+    const want = Math.min(W.len, 1.35) + 0.55;
     const ft = foe.p[TIP], fv = vel(ft), fsp = len3(fv[0], fv[1], fv[2]);
     const threat = foe.alive && foe.armed && fsp > 5 && len3(ft.x - sh.x, ft.y - sh.y, ft.z - sh.z) < foe.weapon.len + 0.9;
     seen = threat ? seen + dt : 0;
@@ -1602,24 +1610,32 @@ function buildWeapon(Wp) {
   const g = new T.Group(), len = Wp.len, wood = mat('#7A5A3A', { roughness: 0.85 }), grip = mat('#3A2A1A', { roughness: 0.8 });
   const box = (w, h, d, m, x, y) => { const b = addMesh(g, new T.BoxGeometry(w, h, d), m); b.position.set(x || 0, y, 0); return b; };
   const cyl = (r, h, m, y) => { const c = addMesh(g, new T.CylinderGeometry(r, r, h, 10), m); c.position.y = y; return c; };
-  if (Wp === WEAPONS.arming || Wp === WEAPONS.longsword) {
+  const look = Wp.look || '';
+  if (Wp === WEAPONS.arming || Wp === WEAPONS.longsword || look === 'sword') {
     const gl = Wp.hands === 2 ? 0.28 : 0.14;
     cyl(0.017, gl, grip, 0.06 - gl / 2);
     const pom = addMesh(g, sphereGeo, mat('#C9A04A', { metalness: 0.8, roughness: 0.35 })); pom.scale.setScalar(0.03); pom.position.y = 0.06 - gl;
     box(0.2, 0.02, 0.025, DARKSTEEL(), 0, 0.075);
     const bl = len - 0.09;
     // four-sided cylinder squashed flat: the two bevels of the edge catch the light like a real blade
-    const blade = addMesh(g, new T.CylinderGeometry(0.03, 0.033, bl * 0.86, 4, 1), STEEL()); blade.scale.set(0.75, 1, 0.13); blade.position.y = 0.085 + bl * 0.43;
-    const pt = addMesh(g, new T.ConeGeometry(0.03, bl * 0.14, 4), STEEL()); pt.scale.set(0.75, 1, 0.13); pt.position.y = 0.085 + bl * 0.93;
+    const bw = (Wp.broad || 1) * (Wp.thin || 1), blade = addMesh(g, new T.CylinderGeometry(0.03 * bw, 0.033 * bw, bl * 0.86, 4, 1), STEEL()); blade.scale.set(0.75, 1, 0.13); blade.position.y = 0.085 + bl * 0.43;
+    const pt = addMesh(g, new T.ConeGeometry(0.03 * bw, bl * 0.14, 4), STEEL()); pt.scale.set(0.75, 1, 0.13); pt.position.y = 0.085 + bl * 0.93;
   } else if (Wp === WEAPONS.club) {
     const c = addMesh(g, new T.CylinderGeometry(0.05, 0.022, len + 0.08, 8), mat('#8A6440', { roughness: 0.95 })); c.position.y = (len - 0.08) / 2;
-  } else if (Wp === WEAPONS.mace) {
+  } else if (look === 'hammer') {
+    cyl(0.016, len, wood, len / 2 - 0.08);
+    cyl(0.02, 0.14, grip, -0.02);
+    box(0.16, 0.06, 0.06, STEEL(), 0.02, len - 0.04);
+    addMesh(g, new T.ConeGeometry(0.02, 0.1, 4), STEEL()).position.set(0, len + 0.04, 0);
+  } else if (Wp === WEAPONS.mace || look === 'mace') {
     cyl(0.016, len, wood, len / 2 - 0.08);
     cyl(0.02, 0.14, grip, -0.02);
     for (let k = 0; k < 6; k++) { const fl = box(0.075, 0.12, 0.008, STEEL(), 0, len - 0.04); fl.rotation.y = k / 6 * Math.PI; }
-    const hd = addMesh(g, sphereGeo, STEEL()); hd.scale.setScalar(0.035); hd.position.y = len - 0.04;
-  } else if (Wp === WEAPONS.axe) {
+    const hd = addMesh(g, sphereGeo, STEEL()); hd.scale.setScalar(look === 'mace' ? 0.055 : 0.035); hd.position.y = len - 0.04;
+    if (look === 'mace') for (let k = 0; k < 8; k++) { const sp = addMesh(g, new T.ConeGeometry(0.012, 0.06, 4), STEEL()); const a = k / 8 * Math.PI * 2, e = k % 2 ? 0.5 : -0.5; sp.position.set(Math.cos(a) * 0.06, len - 0.04 + e * 0.05, Math.sin(a) * 0.06); sp.lookAt(0, len - 0.04, 0); sp.rotateX(-Math.PI / 2); }
+  } else if (Wp === WEAPONS.axe || look === 'axe') {
     cyl(0.017, len + 0.12, wood, (len - 0.12) / 2 + 0.03);
+    if (look === 'axe') cyl(0.019, 0.3, grip, 0.0);
     const shape = new T.Shape(); shape.moveTo(-0.02, 0.03); shape.lineTo(0.06, 0.06); shape.lineTo(0.16, 0.12); shape.lineTo(0.17, -0.1); shape.lineTo(0.08, -0.06); shape.lineTo(0.02, -0.03); shape.lineTo(-0.02, -0.03);
     const ag = new T.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false }); ag.translate(0, 0, -0.006);
     addMesh(g, ag, STEEL()).position.y = len - 0.03;
@@ -1628,7 +1644,7 @@ function buildWeapon(Wp) {
     cyl(0.02, 0.14, grip, 0.1); cyl(0.02, 0.12, grip, -0.3);
     const head = addMesh(g, new T.CylinderGeometry(0.0, 0.04, 0.3, 4, 1), STEEL()); head.scale.set(1, 1, 0.25); head.position.y = len - 0.08;
     box(0.13, 0.02, 0.02, DARKSTEEL(), 0, len - 0.25);
-  } else if (Wp === WEAPONS.poleaxe) {
+  } else if (Wp === WEAPONS.poleaxe || look === 'poleaxe') {
     cyl(0.018, len + 0.45, wood, (len - 0.45) / 2);
     cyl(0.021, 0.16, grip, 0.12); cyl(0.021, 0.12, grip, -0.26);
     const shape = new T.Shape(); shape.moveTo(0, 0.04); shape.lineTo(0.14, 0.07); shape.lineTo(0.16, -0.12); shape.lineTo(0.02, -0.05);
@@ -1848,7 +1864,7 @@ function playerInput() {
   inp.strafe = (R ? 1 : 0) - (L ? 1 : 0);
   inp.crouch = !!(keys.KeyC || keys.ControlLeft || keys.ControlRight || touch.crouch);
   inp.flip = !!mouse.flip;
-  inp.thrust = !!(mouse.right || keys.Space || touch.thrust);
+  inp.thrust = !!(keys.KeyE || keys.Space || touch.thrust);
   inp.run = !!(keys.ShiftLeft || keys.ShiftRight || touch.run);
   inp.kick = !!(keys.KeyF || touch.kick || mouse.middle);
   player.aim = aimLocal();
@@ -2087,7 +2103,7 @@ function renderArmory() {
       const speed = clamp(1.3 - it.tip * 0.6 + (it.hands === 2 ? 0.15 : 0), 0, 1), power = clamp(it.dmg * it.tip / 2.4, 0, 1), armorP = it.kind === 'blunt' ? 0.9 : it.kind === 'chop' ? 0.45 : 0.15;
       stats = '<span class="stat">Power ' + bars(power) + '</span><span class="stat">Speed ' + bars(speed) + '</span><span class="stat">Reach ' + bars(it.len / 1.8) + '</span><span class="stat">Vs armour ' + bars(armorP) + '</span>';
       desc = ({ club:'A knotted stick. Better than thy fists, but not by much.', arming:'Light and quick, with a point for thrusting. A swift cut may take a limb.', mace:'A flanged steel head. It crusheth through mail and plate, but never cutteth.',
-        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
+        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', dagger:'A short stabbing blade. Quick as a wasp, and as short of reach.', falchion:'A broad, heavy single edge that chops like a cleaver.', hammer:'A steel beak and a flat face. Plate ringeth like a bell beneath it.', estoc:'A long stiff spike of a sword, made to find the gaps in armour.', morningstar:'A spiked iron ball upon a haft. Cruel against any armour.', greataxe:'A Danish two-handed axe. Wide swings that take limbs clean off.', greatsword:'A great two-handed blade, longer than a man is tall to the shoulder.', halberd:'Axe blade, hook and spike on a long pole. Keep thy foes far off.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
       desc += it.hands === 2 ? ' Two-handed.' : '';
     } else {
       stats = '<span class="stat">Protection ' + bars(it.val) + '</span><span class="stat">Weight ' + bars(it.kg / 14) + '</span>';
@@ -2174,7 +2190,7 @@ function startMode(kind) {
     setFighters(list, 0);
     foe = list[1];
     enterRing(title, small, label);
-    tips(kind === 'training' ? 'Keys 1 to 6 put any weapon in thy hand. Each blow showeth how hard it landed.' : kind === 'melee' ? keyName('KeyE') + ' or Tab turneth thee to face the next brawler.' : '');
+    tips(kind === 'training' ? 'Keys 1 to 6 put any weapon in thy hand. Each blow showeth how hard it landed.' : kind === 'melee' ? keyName('KeyR') + ' or Tab turneth thee to face the next brawler.' : '');
     ads.gameplay(true);
   });
 }
@@ -2365,6 +2381,20 @@ function mpHost() {
     if (!mp.on) openRoom();
   });
 }
+function mpAdoptBodies() {
+  const now = performance.now();
+  for (const f of fighters) {
+    if (!f.netBody || f.down > 0 || !f.alive || now - f.netBodyT > 400) continue;
+    const b = f.netBody;
+    for (let j = 0; j < f.p.length; j++) {
+      const q = f.p[j], x = b[j * 3], y = b[j * 3 + 1], z = b[j * 3 + 2];
+      if (Math.abs(x - q.x) + Math.abs(z - q.z) > 1.2) continue;
+      const k = 0.35, dx = (x - q.x) * k, dy = (y - q.y) * k, dz = (z - q.z) * k;
+      q.x += dx; q.y += dy; q.z += dz;
+    }
+    f.baseX += (b[2 * 3] - f.p[2].x) * 0.35; f.baseZ += (b[2 * 3 + 2] - f.p[2].z) * 0.35;
+  }
+}
 function mpHostRecv(conn, d) {
   if (!d || typeof d !== 'object') return;
   if (d.t === 'hello') {
@@ -2388,6 +2418,9 @@ function mpHostRecv(conn, d) {
     f.aim = [n(d.a[0], 0, 0.6), n(d.a[1], -0.6, 0.6), n(d.a[2], -0.6, 0.6)];
     Object.assign(f.input, { thrust: !!d.th, flip: !!d.fl, run: !!d.ru, kick: !!d.kk, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
     f.lock = Number.isInteger(d.lk) && fighters[d.lk] ? d.lk : null;
+    // the joiner's own body is his to steer: the host taketh it as given (unless he is down), so his blade landeth where he seeth it
+    if (Array.isArray(d.b) && d.b.length === f.p.length * 3 && f.alive && f.down <= 0) { f.netBody = d.b.map(v => +v || 0); f.netBodyT = performance.now(); }
+    else f.netBody = null;
   }
 }
 function mpDrop(id) {
@@ -2684,7 +2717,7 @@ function mpUpdate(dt) {
     let n = 0;
     while (acc >= DT && n < 12) {
       if (introT < 0.9) { for (const f of fighters) { f.input.move = 0; f.input.strafe = 0; } const keep = fighters.map(f => f.ai); fighters.forEach(f => { f.ai = null; }); step(world); fighters.forEach((f, i) => { f.ai = keep[i]; }); }
-      else step(world);
+      else { mpAdoptBodies(); step(world); }
       acc -= DT; n++;
     }
     if (n >= 12) acc = 0;
@@ -2711,14 +2744,15 @@ function mpUpdate(dt) {
     if (mp.sendT >= 1 / 30 && !mp.watching) {
       mp.sendT = 0;
       const inp = player.input, a = player.aim;
-      mpSend(mp.host, { t: 'in', a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, ru: inp.run ? 1 : 0, kk: inp.kick ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
+      const body = []; if (player.alive && player.down <= 0) for (const q of player.p) body.push(r3(q.x), r3(q.y), r3(q.z));
+      mpSend(mp.host, { t: 'in', b: body.length ? body : null, a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, ru: inp.run ? 1 : 0, kk: inp.kick ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
     }
     // own body: predicted locally at the sim rate, then eased toward the host (snapped only if far adrift)
     if (!mp.watching && player.alive) {
       mp.predAcc = Math.min(0.1, (mp.predAcc || 0) + dt);
       while (mp.predAcc >= DT) { SB.predict(world, player); mp.predAcc -= DT; }
     }
-    const k = Math.min(1, dt * 16), kOwn = Math.min(1, dt * 4);
+    const k = Math.min(1, dt * 16), kOwn = Math.min(1, dt * 0.8);
     for (const f of fighters) for (const q of f.p) {
       if (q.tx == null) continue;
       if (f === player && !mp.watching && player.alive && player.down <= 0 && Math.abs(q.tx - q.x) + Math.abs(q.tz - q.z) < 0.8) {
@@ -2853,7 +2887,7 @@ window.addEventListener('keydown', e => {
   if (!/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'PageUp' || e.code === 'PageDown')) e.preventDefault();
   if (mode === 'fight' && e.code === 'Tab') e.preventDefault();
   if (!$('controls').classList.contains('hidden') && mode === 'fight' && !e.repeat && !/^Key[WASD]$|^Arrow/.test(e.code)) controlsCard(false);
-  if (mode === 'fight' && (e.code === 'Tab' || e.code === 'KeyE') && !e.repeat) cycleTarget();
+  if (mode === 'fight' && (e.code === 'Tab' || e.code === 'KeyR') && !e.repeat) cycleTarget();
   if (mode === 'fight' && solo.kind === 'training' && /^Digit[1-6]$/.test(e.code)) trainingWeapon(+e.code.slice(5) - 1);
   keys[e.code] = true;
   if (mode === 'fight' || mode === 'pause') sfx.init();
@@ -2901,7 +2935,7 @@ document.addEventListener('touchmove', e => { if (!e.target.closest || !e.target
 // iOS keeps audio asleep until a tap or click
 for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => sfx.resume(), { passive: true });
 // Key names follow the player's own keyboard (Z Q S D on AZERTY) where the browser can tell us.
-const KEYNAMES = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D', KeyC: 'C', KeyE: 'E' };
+const KEYNAMES = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D', KeyC: 'C', KeyE: 'E', KeyR: 'R' };
 const keyName = code => KEYNAMES[code] || code;
 function relabelKeys() { for (const el of document.querySelectorAll('[data-key]')) el.textContent = keyName(el.dataset.key); }
 try {
