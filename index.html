@@ -190,6 +190,8 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
 }
 @media (max-height:560px) and (max-aspect-ratio:4/3) { .logo { font-size:56px; } .titlebtns .btn { padding:9px 18px; font-size:18px; } }
 @media (max-width:420px) { .titlebtns .btn { font-size:18px; padding:10px 16px; } .logo { font-size:64px; } }
+.bal.stam{margin-top:3px}.bal.stam i{background:#D7A441}.bal.stam i.low{background:#9A5A3A}
+#tRun { right:170px; } #tKick { right:92px; bottom:calc(max(16px, env(safe-area-inset-bottom)) + 66px); }
 </style>
 </head>
 <body>
@@ -199,7 +201,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
 <div id="nogl" class="screen hidden"><div class="panel"><h2>Alas, no 3D</h2><p>Steel Bout needeth WebGL. Try another browser, or turn on hardware acceleration.</p></div></div>
 
 <div id="hud" class="hidden">
-  <div class="hp l"><div class="nm" id="pName">Thou</div><div class="track"><div class="ghost" id="pGhost"></div><div class="fill" id="pFill"></div></div><div class="bal"><i id="pBal"></i></div></div>
+  <div class="hp l"><div class="nm" id="pName">Thou</div><div class="track"><div class="ghost" id="pGhost"></div><div class="fill" id="pFill"></div></div><div class="bal"><i id="pBal"></i></div><div class="bal stam"><i id="pStam"></i></div></div>
   <div class="hp r"><div class="nm" id="eName">Foe</div><div class="track"><div class="ghost" id="eGhost"></div><div class="fill" id="eFill"></div></div><div class="bal"><i id="eBal"></i></div></div>
   <div id="boutLbl">Bout 1 of 8</div>
   <div id="roster" class="hidden"></div>
@@ -219,14 +221,16 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
   <div class="cc">
     <svg viewBox="0 0 60 80" class="ico"><rect x="12" y="10" width="36" height="58" rx="18" fill="none" stroke="currentColor" stroke-width="4"/><path d="M30 10 h0 a18 18 0 0 1 18 18 v4 h-18 z" fill="#D7A441"/><line x1="30" y1="10" x2="30" y2="32" stroke="currentColor" stroke-width="4"/></svg>
     <b>Thrust</b><span>hold right-click or <kbd>Space</kbd></span>
-    <b>Flip blade</b><span>left-click (or hold <kbd>F</kbd>) to turn the sword flat and sideways</span>
   </div>
+  <div class="cc"><div class="keys one"><kbd>LMB</kbd></div><b>Flip</b><span>turn the point out sideways, for cuts at the neck</span></div>
+  <div class="cc"><div class="keys one"><kbd data-key="ShiftLeft">Shift</kbd></div><b>Run</b><span>spendeth breath (the gold bar)</span></div>
+  <div class="cc"><div class="keys one"><kbd data-key="KeyF">F</kbd></div><b>Kick</b><span>or middle-click, to boot a foe off his feet</span></div>
   <div class="cc"><div class="keys one"><kbd>Esc</kbd></div><b>Pause</b><span>and free the mouse</span></div>
   <div class="cct">Click to fight</div>
 </div>
 <div id="touch" class="hidden">
   <div class="tbtn" id="tU">▲</div><div class="tbtn" id="tD">▼</div><div class="tbtn" id="tL">◀</div><div class="tbtn" id="tR">▶</div>
-  <div class="tbtn" id="tCrouch"><small>Low</small></div><div class="tbtn" id="tThrust"><small>Thrust</small></div>
+  <div class="tbtn" id="tCrouch"><small>Low</small></div><div class="tbtn" id="tThrust"><small>Thrust</small></div><div class="tbtn" id="tRun"><small>Run</small></div><div class="tbtn" id="tKick"><small>Kick</small></div>
 </div>
 
 <div id="corner">
@@ -418,6 +422,7 @@ const WEAPONS = {
   mace:      { name:'Flanged Mace',  len:0.74, edge:0.72, tip:1.15, grip:0.4, wrist:85,  dmg:3.0, kind:'blunt', point:false, hands:1, price:140 },
   axe:       { name:'Bearded Axe',   len:0.86, edge:0.76, tip:1.05, grip:0.4, wrist:85,  dmg:2.5, kind:'chop',  point:false, hands:1, price:170 },
   longsword: { name:'Longsword',     len:1.22, edge:0.2,  tip:0.68, grip:0.6, wrist:125, dmg:1.7, kind:'cut',   point:true,  hands:2, price:300 },
+  spear:     { name:'Boar Spear',    len:1.55, edge:0.86, tip:1.3,  grip:0.6, wrist:120, dmg:2.0, kind:'cut',   point:true,  hands:2, price:240 },
   poleaxe:   { name:'Poleaxe',       len:1.7,  edge:0.84, tip:1.7,  grip:0.8, wrist:150, dmg:2.3, kind:'chop',  point:true,  hands:2, price:480 }
 };
 // Armour pieces by slot. val: how much of a cut it stops (0..1). kg slows walking a little.
@@ -477,7 +482,7 @@ function makeFighter(opt) {
     look: opt.look || {}, strength: opt.strength || 1,
     hp: 100, maxHp: 100, ctrl: 1, down: 0, alive: true, cool: {}, lift: [false, false], armed: true, lost: [], stumps: [], out: null,
     input: { tx: 0, ty: 1.2, tz: 0, thrust: false, move: 0, strafe: 0, crouch: false },
-    trail: [], hitFlash: 0, dmgTaken: 0, dmgDealt: 0, hits: 0, swing: 0
+    trail: [], stam: 1, kickT: 0, kickCd: 0, kicked: false, hitFlash: 0, dmgTaken: 0, dmgDealt: 0, hits: 0, swing: 0
   };
   const fx = opt.fx != null ? opt.fx : 1, fz = opt.fz || 0, fl = Math.hypot(fx, fz) || 1;
   f.F = [fx / fl, 0, fz / fl];
@@ -517,17 +522,23 @@ function control(f) {
   if (f.armed) p[HAND_R].fy -= G * p[HAND_R].m * c;
   if (c <= 0.01) return;
   // walking moves the stance point (forward / strafe in the body frame); being shoved drags it along
-  const sp = (inp.crouch ? 1.0 : 1.7) * slow * DT * c;
   const mv = clamp(inp.move, -1, 1), st = clamp(inp.strafe, -1, 1);
+  // running: forward only, standing tall, and it spendeth breath; a winded fighter must walk till he recovereth
+  const run = !!inp.run && mv > 0 && !inp.crouch && f.stam > (f.winded ? 0.35 : 0.02);
+  f.winded = f.stam < 0.03 || (f.winded && f.stam < 0.35);
+  f.stam = clamp(f.stam + (run ? -0.2 : 0.14) * DT, 0, 1);
+  f.running = run;
+  const sp = (inp.crouch ? 1.0 : run ? 3.1 : 1.7) * slow * DT * c;
   f.baseX += (F[0] * mv + Rx * st * 0.8) * sp; f.baseZ += (F[2] * mv + Rz * st * 0.8) * sp;
   const ox = pel.x - f.baseX, oz = pel.z - f.baseZ, ol = Math.hypot(ox, oz);
-  if (ol > 0.12) { f.baseX += ox * (1 - 0.12 / ol); f.baseZ += oz * (1 - 0.12 / ol); }
+  const leash = run ? 0.24 : 0.12;
+  if (ol > leash) { f.baseX += ox * (1 - leash / ol); f.baseZ += oz * (1 - leash / ol); }
   const br = Math.hypot(f.baseX, f.baseZ);
   if (br > ARENA - 0.4) { f.baseX *= (ARENA - 0.4) / br; f.baseZ *= (ARENA - 0.4) / br; }
   const base = { x: f.baseX, y: 0, z: f.baseZ };
   const hip = inp.crouch ? 0.7 : 0.88;
-  pd(pel, { x: f.baseX, y: hip, z: f.baseZ }, 260, 26, 70, c);
-  const lean = 0.05 + (inp.crouch ? 0.1 : 0);
+  pd(pel, { x: f.baseX, y: hip, z: f.baseZ }, 260, 26, run ? 110 : 70, c);
+  const lean = 0.05 + (inp.crouch ? 0.1 : 0) + (run ? 0.09 : 0);
   pd(neck, local(f, pel, lean, 0, 0.5), 260, 22, 80, c);
   pd(p[HEAD], local(f, neck, 0.04, 0, 0.23), 200, 16, 60, c);
   // shoulders square up to the foe, turning a little into the swing
@@ -541,6 +552,7 @@ function control(f) {
     if (!attached(fi)) return;
     const foot = p[fi], s = spots[k], d = Math.hypot(foot.x - s.x, foot.z - s.z);
     if (!f.lift[k] && !f.lift[1 - k] && d > 0.13) f.lift[k] = true;
+    if (k === 0 && f.kickT > 0) { pd(foot, local(f, pel, 0.9, 0.06, -0.12), 1100, 40, 320, c); return; }
     if (f.lift[k]) {
       const near = d < 0.04;
       pd(foot, { x: s.x, y: near ? 0.04 : 0.17, z: s.z }, 420, 30, 120, c);
@@ -549,6 +561,7 @@ function control(f) {
     const knee = p[fi - 1];
     if (attached(fi - 1)) pd(knee, local(f, lerpP(pel, foot, 0.5), 0.13, 0, 0), 140, 12, 50, c);
   });
+  if (inp.kick && f.kickCd <= 0 && f.ctrl > 0.45 && attached(FOOT_R) && f.stam > 0.15) { f.kickT = 0.32; f.kickCd = 1.3; f.kicked = false; f.stam -= 0.12; }
   // weapon hand: pulled toward the aim point within arm's reach of the right shoulder. Its force is capped,
   // so heavy weapons take longer to get moving and longer to stop: momentum is what does the damage.
   const sh = p[SH_R];
@@ -580,7 +593,7 @@ function control(f) {
     const bz = az * cb + (kx * ay) * sb + kz * dot * (1 - cb);
     let ux = bx, uy = by, uz = bz;
     // flipped grip: the blade lieth flat across the body (sideways) instead of standing upright
-    if (inp.flip && !inp.thrust) { ux = ax * 0.35 - Rx * 0.94; uy = ay * 0.2; uz = az * 0.35 - Rz * 0.94; const ul = len3(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul; }
+    if (inp.flip && !inp.thrust) { ux = F[0] * 0.5 + Rx * 0.87; uy = 0.05; uz = F[2] * 0.5 + Rz * 0.87; const ul = len3(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul; }
     const L = W.len, dt = { x: h.x + ux * L, y: h.y + uy * L, z: h.z + uz * L };
     const [tvx, tvy, tvz] = vel(tip);
     const wmax = W.wrist * (0.4 + 0.6 * c) * (inp.thrust ? 1.3 : 1);
@@ -797,6 +810,21 @@ function impaleRelease(w, A) {
   }
 }
 
+// a kick landeth when the kicking foot cometh near the foe's middle while it is still flying out
+function kickHit(w, A, B) {
+  if (A.kickT < 0.06 || A.kicked || !B.alive) return;
+  const ft = A.p[FOOT_R], pa = B.p[PELV], pb = B.p[NECK];
+  const [s] = closestSegSeg(ft, ft, pa, pb), q = lerpP(pa, pb, s);
+  if (len3(ft.x - q.x, ft.y - q.y, ft.z - q.z) > 0.3) return;
+  A.kicked = true;
+  const F = A.F, push = 0.025;
+  for (const p of B.p) { p.px -= F[0] * push; p.pz -= F[2] * push; }
+  B.baseX += F[0] * 0.25; B.baseZ += F[2] * 0.25;
+  B.ctrl = Math.max(0.1, B.ctrl - 0.4);
+  if (B.ctrl < 0.3 || Math.random() < 0.3) knockDown(B, 1.2);
+  if (B.stuck) B.stuck = null;
+  w.events.push({ type: 'kick', from: A, to: B, x: q.x, y: q.y, z: q.z });
+}
 function knockDown(f, t) { if (!f.alive) return; f.down = Math.max(f.down, t); f.ctrl = 0; }
 
 function weaponClash(w, A, B) {
@@ -859,6 +887,7 @@ function stepFighter(f) {
     if (f.down <= 0 && f.alive) { f.down = 0; f.ctrl = 0.02; f.baseX = f.p[PELV].x; f.baseZ = f.p[PELV].z; }
   } else if (f.alive) f.ctrl = Math.min(1, f.ctrl + DT * (f.ctrl < 0.6 ? 0.55 : 0.35));
   f.hitFlash = Math.max(0, f.hitFlash - DT * 4);
+  f.kickT = Math.max(0, f.kickT - DT); f.kickCd = Math.max(0, f.kickCd - DT);
 }
 
 function step(w) {
@@ -887,11 +916,28 @@ function step(w) {
         weaponClash(w, A, B);
         if (!allies(A, B)) { weaponHits(w, A, B); weaponHits(w, B, A); }
         bodyPush(A, B); bodyPush(B, A);
+        if (!allies(A, B)) { kickHit(w, A, B); kickHit(w, B, A); }
       }
     }
   }
   for (const f of w.f) { const t = f.p[TIP]; f.trail.push([t.x, t.y, t.z]); if (f.trail.length > 10) f.trail.shift(); }
   w.t += DT;
+}
+
+// client-side prediction: a joined player's own body is stepped here at once, so it answereth his hand
+// without waiting on the host; the host's snapshots then pull it gently back into agreement
+function predict(w, f) {
+  if (!f.alive) return;
+  const foe = f.target;
+  if (foe && f.down <= 0) {
+    const dx = foe.p[PELV].x - f.p[PELV].x, dz = foe.p[PELV].z - f.p[PELV].z, l = Math.hypot(dx, dz) || 1;
+    let fx = f.F[0] + (dx / l - f.F[0]) * 0.08, fz = f.F[2] + (dz / l - f.F[2]) * 0.08; const fl = Math.hypot(fx, fz) || 1;
+    f.F = [fx / fl, 0, fz / fl];
+  }
+  if (f.aim) { const q = local(f, f.p[SH_R], f.aim[0], f.aim[1], f.aim[2]); f.input.tx = q.x; f.input.ty = q.y; f.input.tz = q.z; }
+  const kt = f.kickT; control(f); f.kickT = Math.max(0, kt - DT); f.kickCd = Math.max(0, f.kickCd - DT);
+  integrate(f);
+  for (let it = 0; it < ITER; it++) constraints(f);
 }
 
 // ---------- Opponent AI ----------
@@ -931,8 +977,10 @@ function makeAI(o) {
   ai.think = (w, f, foe, dt) => {
     const inp = f.input, sh = f.p[SH_R], W = f.weapon;
     st += dt; inp.crouch = false; inp.strafe = 0;
-    if (!f.alive || f.down > 0) { inp.move = 0; return; }
+    if (!f.alive || f.down > 0) { inp.move = 0; inp.kick = false; return; }
     const gap = Math.hypot(foe.p[PELV].x - f.p[PELV].x, foe.p[PELV].z - f.p[PELV].z);
+    inp.kick = foe.alive && gap < 0.95 && Math.random() < dt * (0.3 + ai.aggro * 0.6);
+    inp.run = gap > 3.5 && f.stam > 0.5;
     const want = W.len + 0.55;
     const ft = foe.p[TIP], fv = vel(ft), fsp = len3(fv[0], fv[1], fv[2]);
     const threat = foe.alive && foe.armed && fsp > 5 && len3(ft.x - sh.x, ft.y - sh.y, ft.z - sh.z) < foe.weapon.len + 0.9;
@@ -987,7 +1035,7 @@ function makeAI(o) {
 
 root.SB = { G, DT, ARENA, WEAPONS, ARMOR, SEGS, BONES, SEVER_AT,
   I: { HEAD, NECK, PELV, KNEE_R, FOOT_R, KNEE_L, FOOT_L, SH_R, ELB_R, HAND_R, SH_L, ELB_L, HAND_L, TIP },
-  makeFighter, makeWorld, makeAI, step, impale, allies, knockDown, sever, vel, clamp, stops, local, frame, len3 };
+  makeFighter, makeWorld, makeAI, step, predict, impale, allies, knockDown, sever, vel, clamp, stops, local, frame, len3 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 // Steel Bout: first-person 3D rendering (three.js), input, sound, menus and progression around sim.js.
@@ -1575,6 +1623,11 @@ function buildWeapon(Wp) {
     const shape = new T.Shape(); shape.moveTo(-0.02, 0.03); shape.lineTo(0.06, 0.06); shape.lineTo(0.16, 0.12); shape.lineTo(0.17, -0.1); shape.lineTo(0.08, -0.06); shape.lineTo(0.02, -0.03); shape.lineTo(-0.02, -0.03);
     const ag = new T.ExtrudeGeometry(shape, { depth: 0.012, bevelEnabled: false }); ag.translate(0, 0, -0.006);
     addMesh(g, ag, STEEL()).position.y = len - 0.03;
+  } else if (Wp === WEAPONS.spear) {
+    cyl(0.017, len + 0.5, wood, (len - 0.5) / 2);
+    cyl(0.02, 0.14, grip, 0.1); cyl(0.02, 0.12, grip, -0.3);
+    const head = addMesh(g, new T.CylinderGeometry(0.0, 0.04, 0.3, 4, 1), STEEL()); head.scale.set(1, 1, 0.25); head.position.y = len - 0.08;
+    box(0.13, 0.02, 0.02, DARKSTEEL(), 0, len - 0.25);
   } else if (Wp === WEAPONS.poleaxe) {
     cyl(0.018, len + 0.45, wood, (len - 0.45) / 2);
     cyl(0.021, 0.16, grip, 0.12); cyl(0.021, 0.12, grip, -0.26);
@@ -1728,7 +1781,7 @@ function updateTrail(mesh, f) {
 let mode = 'title', world = null, fighters = [], views = [], player = null, foe = null, pv = null, foeIdx = 0, fightT = 0, endT = -1, result = null, introT = 0;
 let timeScale = 1, hitStop = 0, slowMo = 0, acc = 0, shake = 0, clock = 0;
 const keys = {}, mouse = { x: 0, y: 0, on: false, right: false };
-const touch = { up: false, down: false, L: false, R: false, thrust: false, crouch: false, aim: null };
+const touch = { up: false, down: false, L: false, R: false, thrust: false, crouch: false, run: false, kick: false, aim: null };
 let usingTouch = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 let pops = [];
 
@@ -1794,8 +1847,10 @@ function playerInput() {
   inp.move = (fwd ? 1 : 0) - (back ? 1 : 0);
   inp.strafe = (R ? 1 : 0) - (L ? 1 : 0);
   inp.crouch = !!(keys.KeyC || keys.ControlLeft || keys.ControlRight || touch.crouch);
-  inp.flip = !!(mouse.flip || keys.KeyF);
-  inp.thrust = !!(mouse.right || keys.Space || keys.ShiftLeft || keys.ShiftRight || touch.thrust);
+  inp.flip = !!mouse.flip;
+  inp.thrust = !!(mouse.right || keys.Space || touch.thrust);
+  inp.run = !!(keys.ShiftLeft || keys.ShiftRight || touch.run);
+  inp.kick = !!(keys.KeyF || touch.kick || mouse.middle);
   player.aim = aimLocal();
   if (mode === 'pause') { inp.move = 0; inp.strafe = 0; inp.crouch = false; inp.thrust = false; player.aim = [0.35, -0.08, 0]; }
   const q = local(player, player.p[I.SH_R], player.aim[0], player.aim[1], player.aim[2]); inp.tx = q.x; inp.ty = q.y; inp.tz = q.z;
@@ -1813,6 +1868,11 @@ function cycleTarget() {
 const PART_NAME = { [I.SH_R]: 'sword arm', [I.ELB_R]: 'sword hand', [I.SH_L]: 'arm', [I.ELB_L]: 'hand', [I.PELV]: 'leg', [I.KNEE_R]: 'leg', [I.KNEE_L]: 'leg' };
 function handleEvents() {
   for (const e of world.events) {
+    if (e.type === 'kick') {
+      sfx.thud(0.7); shake = Math.max(shake, e.from === player || e.to === player ? 0.5 : 0.15); cheer = Math.min(1, cheer + 0.2);
+      if (e.from === player) pop(e.x, e.y + 0.3, e.z, 'Booted!', '#E8C46A'); else if (e.to === player) pop(e.x, e.y + 0.3, e.z, 'Kicked!', '#FF8A6A');
+      continue;
+    }
     if (e.type === 'clash') {
       const v = clamp(e.speed / 14, 0, 1);
       sparks(e.x, e.y, e.z, 6 + v * 16 | 0, 2 + v * 5);
@@ -1882,6 +1942,7 @@ function renderBars(instant) {
     const gh = $(k + 'Ghost');
     if (instant) { gh.style.transition = 'none'; gh.style.width = pc + '%'; void gh.offsetWidth; gh.style.transition = ''; } else gh.style.width = pc + '%';
     $(k + 'Bal').style.width = (f.down > 0 ? 0 : f.ctrl * 100) + '%';
+    if (k === 'p') { const sb = $('pStam'); sb.style.width = clamp(f.stam == null ? 1 : f.stam, 0, 1) * 100 + '%'; sb.classList.toggle('low', !!f.winded); }
   }
 }
 
@@ -2026,7 +2087,7 @@ function renderArmory() {
       const speed = clamp(1.3 - it.tip * 0.6 + (it.hands === 2 ? 0.15 : 0), 0, 1), power = clamp(it.dmg * it.tip / 2.4, 0, 1), armorP = it.kind === 'blunt' ? 0.9 : it.kind === 'chop' ? 0.45 : 0.15;
       stats = '<span class="stat">Power ' + bars(power) + '</span><span class="stat">Speed ' + bars(speed) + '</span><span class="stat">Reach ' + bars(it.len / 1.8) + '</span><span class="stat">Vs armour ' + bars(armorP) + '</span>';
       desc = ({ club:'A knotted stick. Better than thy fists, but not by much.', arming:'Light and quick, with a point for thrusting. A swift cut may take a limb.', mace:'A flanged steel head. It crusheth through mail and plate, but never cutteth.',
-        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
+        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
       desc += it.hands === 2 ? ' Two-handed.' : '';
     } else {
       stats = '<span class="stat">Protection ' + bars(it.val) + '</span><span class="stat">Weight ' + bars(it.kg / 14) + '</span>';
@@ -2325,7 +2386,7 @@ function mpHostRecv(conn, d) {
     if (!f || !Array.isArray(d.a)) return;
     const n = (v, a, b) => clamp(+v || 0, a, b);
     f.aim = [n(d.a[0], 0, 0.6), n(d.a[1], -0.6, 0.6), n(d.a[2], -0.6, 0.6)];
-    Object.assign(f.input, { thrust: !!d.th, flip: !!d.fl, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
+    Object.assign(f.input, { thrust: !!d.th, flip: !!d.fl, run: !!d.ru, kick: !!d.kk, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
     f.lock = Number.isInteger(d.lk) && fighters[d.lk] ? d.lk : null;
   }
 }
@@ -2650,11 +2711,20 @@ function mpUpdate(dt) {
     if (mp.sendT >= 1 / 30 && !mp.watching) {
       mp.sendT = 0;
       const inp = player.input, a = player.aim;
-      mpSend(mp.host, { t: 'in', a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
+      mpSend(mp.host, { t: 'in', a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, ru: inp.run ? 1 : 0, kk: inp.kick ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
     }
-    const k = Math.min(1, dt * 16);
+    // own body: predicted locally at the sim rate, then eased toward the host (snapped only if far adrift)
+    if (!mp.watching && player.alive) {
+      mp.predAcc = Math.min(0.1, (mp.predAcc || 0) + dt);
+      while (mp.predAcc >= DT) { SB.predict(world, player); mp.predAcc -= DT; }
+    }
+    const k = Math.min(1, dt * 16), kOwn = Math.min(1, dt * 4);
     for (const f of fighters) for (const q of f.p) {
       if (q.tx == null) continue;
+      if (f === player && !mp.watching && player.alive && player.down <= 0 && Math.abs(q.tx - q.x) + Math.abs(q.tz - q.z) < 0.8) {
+        q.x += (q.tx - q.x) * kOwn; q.y += (q.ty - q.y) * kOwn; q.z += (q.tz - q.z) * kOwn; q.px += (q.tx - q.px) * kOwn; q.py += (q.ty - q.py) * kOwn; q.pz += (q.tz - q.pz) * kOwn;
+        continue;
+      }
       const ox = q.x, oy = q.y, oz = q.z, s = DT / Math.max(dt, 1e-3);
       q.x += (q.tx - q.x) * k; q.y += (q.ty - q.y) * k; q.z += (q.tz - q.z) * k;
       q.px = q.x - (q.x - ox) * s; q.py = q.y - (q.y - oy) * s; q.pz = q.z - (q.z - oz) * s;
@@ -2678,7 +2748,7 @@ function mpPackEvent(e) {
 function mpSnapshot() {
   return { t: 'snap', ev: mp.events, f: fighters.map(f => {
     const pos = []; for (const q of f.p) pos.push(r3(q.x), r3(q.y), r3(q.z));
-    return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash)];
+    return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash), Math.round(f.stam * 100) / 100, f.kickT > 0 ? 1 : 0];
   }) };
 }
 function mpApplySnap(d) {
@@ -2699,6 +2769,7 @@ function mpApplySnap(d) {
     if (f !== player || player.lock == null || !fighters[player.lock] || !fighters[player.lock].alive) f.target = fighters[a[8]] || f.target;
     else f.target = fighters[player.lock];
     f.hitFlash = a[9];
+    if (f !== player) { f.stam = a[10]; f.kickT = a[11] ? 0.2 : 0; } else if (Math.abs(f.stam - a[10]) > 0.15) f.stam = a[10];
   });
 }
 function mpRoundOver(winnerId, team) {
@@ -2794,6 +2865,7 @@ fx.addEventListener('pointerdown', e => {
   sfx.init();
   if (e.pointerType === 'touch') { usingTouch = true; touch.aim = e.pointerId; if (mode === 'fight') { $('touch').classList.remove('hidden'); document.body.classList.add('touch'); } }
   if (e.button === 2) mouse.right = true;
+  if (e.button === 1) { mouse.middle = true; e.preventDefault(); }
   if (e.button === 0 && e.pointerType === 'mouse' && mode === 'fight' && document.pointerLockElement && $('controls').classList.contains('hidden')) { mouse.flip = !mouse.flip; sfx.click(); }
   if (!document.pointerLockElement) { mouse.x = e.clientX - padX(); mouse.y = e.clientY; }
   mouse.on = true;
@@ -2806,9 +2878,9 @@ window.addEventListener('pointermove', e => {
   mouse.on = true;
 });
 function padX() { return (window.innerWidth - W) / 2; }
-window.addEventListener('pointerup', e => { if (e.button === 2) mouse.right = false; if (touch.aim === e.pointerId) touch.aim = null; });
+window.addEventListener('pointerup', e => { if (e.button === 2) mouse.right = false; if (e.button === 1) mouse.middle = false; if (touch.aim === e.pointerId) touch.aim = null; });
 window.addEventListener('pointercancel', e => { if (touch.aim === e.pointerId) touch.aim = null; });
-for (const [id, k] of [['tU', 'up'], ['tD', 'down'], ['tL', 'L'], ['tR', 'R'], ['tThrust', 'thrust'], ['tCrouch', 'crouch']]) {
+for (const [id, k] of [['tU', 'up'], ['tD', 'down'], ['tL', 'L'], ['tR', 'R'], ['tThrust', 'thrust'], ['tCrouch', 'crouch'], ['tRun', 'run'], ['tKick', 'kick']]) {
   const el = $(id);
   el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); touch[k] = true; el.classList.add('on'); });
   const up = () => { touch[k] = false; el.classList.remove('on'); };
