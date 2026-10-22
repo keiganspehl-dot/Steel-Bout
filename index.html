@@ -1691,7 +1691,14 @@ function updateFighterView(v, firstPerson) {
   v.head.visible = !firstPerson; v.neck.visible = !firstPerson;
   // weapon: edge faces the swing plane (forward for a guard, sideways for a flat swing)
   const h = p[I.HAND_R], t = p[I.TIP], dir = new T.Vector3(t.x - h.x, t.y - h.y, t.z - h.z).normalize();
-  const R = new T.Vector3(-F.z, 0, F.x), edge = new T.Vector3().crossVectors(dir, R).addScaledVector(new T.Vector3().crossVectors(dir, _up), 0.25);
+  const R = new T.Vector3(-F.z, 0, F.x), want = new T.Vector3().crossVectors(dir, R).addScaledVector(new T.Vector3().crossVectors(dir, _up), 0.25);
+  // when the blade pointeth along the body's side axis the wanted edge shrinketh toward nothing and would spin wildly;
+  // so the edge carrieth on from last frame and only leaneth toward the wanted one as strongly as that one is clear
+  const edge = v.edge || (v.edge = want.clone().normalize());
+  edge.addScaledVector(dir, -edge.dot(dir));
+  if (edge.lengthSq() < 1e-6) edge.copy(want); edge.normalize();
+  const ws = want.length();
+  if (ws > 1e-4) { want.multiplyScalar(1 / ws); if (want.dot(edge) < 0 && ws < 0.5) want.negate(); edge.lerp(want, Math.min(1, ws * ws * 0.6)).addScaledVector(dir, -edge.dot(dir)).normalize(); }
   v.weapon.position.set(h.x, h.y, h.z); basis(v.weapon, dir, new T.Vector3().crossVectors(edge, dir));
   // cut ends get a cap on both sides (red and bleeding when blood is on)
   while (v.stumps.length < f.stumps.length) {
