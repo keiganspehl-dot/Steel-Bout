@@ -1722,11 +1722,13 @@ function segDist(c, a, b) {
 }
 function hideNearCamera(v, on) {
   const f = v.f, p = f.p, c = on ? camera.position : { x: 1e3, y: 1e3, z: 1e3 };
-  for (const l of v.limbs) { const [a, b] = f.bones[l.bi]; l.mesh.visible = segDist(c, p[a], p[b]) > 0.3; }
-  for (const j of v.joints) j.mesh.visible = segDist(c, p[j.pi], p[j.pi]) > 0.26 && !(on && (j.pi === I.SH_R || j.pi === I.SH_L));
-  v.torso.visible = segDist(c, p[I.PELV], p[I.NECK]) > 0.25;
+  // each part hideth inside its distance and showeth again only a little beyond it, so nothing flickereth on the edge
+  const keep = (m, d, r) => { m.visible = m.visible ? d > r : d > r + 0.06; };
+  for (const l of v.limbs) { const [a, b] = f.bones[l.bi]; keep(l.mesh, segDist(c, p[a], p[b]), 0.3); }
+  for (const j of v.joints) { keep(j.mesh, segDist(c, p[j.pi], p[j.pi]), 0.26); if (on && (j.pi === I.SH_R || j.pi === I.SH_L)) j.mesh.visible = false; }
+  keep(v.torso, segDist(c, p[I.PELV], p[I.NECK]), 0.25);
   // the pommel end of the weapon: hide the whole weapon only if the grip is practically in the eye
-  v.weapon.visible = segDist(c, p[I.HAND_R], p[I.HAND_R]) > 0.15;
+  keep(v.weapon, segDist(c, p[I.HAND_R], p[I.HAND_R]), 0.15);
 }
 function disposeView(v) { if (v) scene.remove(v.grp); }
 
