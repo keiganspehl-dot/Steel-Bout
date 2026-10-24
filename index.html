@@ -314,6 +314,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
     <h2 id="pauseTitle">A Moment's Rest</h2>
     <div class="col" style="margin-top:12px">
       <button class="btn big" data-act="resume">Back to the Fight</button>
+      <label class="field" id="pauseWeaponRow"><span class="label">Switch weapon</span><select id="pauseWeapon"></select></label>
       <button class="btn iron" data-act="how">How to Fight</button>
       <button class="btn iron" data-act="sound" id="soundBtn">Sound: on</button>
       <button class="btn royal" data-act="forfeit">Yield and Leave</button>
@@ -431,6 +432,8 @@ const WEAPONS = {
   greataxe:  { name:'Dane Axe',      len:1.4,  edge:0.82, tip:1.45, grip:0.7, wrist:135, dmg:2.9, kind:'chop',  point:false, hands:2, price:380, look:'axe' },
   greatsword:{ name:'Greatsword',    len:1.5,  edge:0.2,  tip:0.9,  grip:0.75,wrist:145, dmg:2.1, kind:'cut',   point:true,  hands:2, price:420, look:'sword', broad:1.3 },
   halberd:   { name:'Halberd',       len:1.85, edge:0.84, tip:1.8,  grip:0.85,wrist:155, dmg:2.5, kind:'chop',  point:true,  hands:2, price:520, look:'poleaxe' },
+  // the joke at the end of the armoury: a rocket launcher, with a switch for single shots or full auto
+  rpg:       { name:'RPG',           len:1.0,  edge:0.9,  tip:1.0,  grip:0.45,wrist:110, dmg:1.2, kind:'blunt', point:false, hands:2, price:999, look:'rpg', gun:true },
   poleaxe:   { name:'Poleaxe',       len:1.7,  edge:0.84, tip:1.7,  grip:0.8, wrist:150, dmg:2.3, kind:'chop',  point:true,  hands:2, price:480 }
 };
 // Armour pieces by slot. val: how much of a cut it stops (0..1). kg slows walking a little.
@@ -537,9 +540,11 @@ function control(f) {
   f.stam = clamp(f.stam + (run ? -0.2 : 0.14) * DT, 0, 1);
   f.running = run;
   const sp = (inp.crouch ? 1.0 : run ? 3.1 : 1.7) * slow * DT * c;
+  // a kick stampeth forward: the stance point lungeth on while the foot flieth out
+  if (f.kickT > 0.12) { f.baseX += F[0] * 2.6 * DT; f.baseZ += F[2] * 2.6 * DT; }
   f.baseX += (F[0] * mv + Rx * st * 0.8) * sp; f.baseZ += (F[2] * mv + Rz * st * 0.8) * sp;
   const ox = pel.x - f.baseX, oz = pel.z - f.baseZ, ol = Math.hypot(ox, oz);
-  const leash = run ? 0.24 : 0.12;
+  const leash = f.kickT > 0 ? 0.32 : run ? 0.24 : 0.12;
   if (ol > leash) { f.baseX += ox * (1 - leash / ol); f.baseZ += oz * (1 - leash / ol); }
   const br = Math.hypot(f.baseX, f.baseZ);
   if (br > ARENA - 0.4) { f.baseX *= (ARENA - 0.4) / br; f.baseZ *= (ARENA - 0.4) / br; }
@@ -560,7 +565,7 @@ function control(f) {
     if (!attached(fi)) return;
     const foot = p[fi], s = spots[k], d = Math.hypot(foot.x - s.x, foot.z - s.z);
     if (!f.lift[k] && !f.lift[1 - k] && d > 0.13) f.lift[k] = true;
-    if (k === 0 && f.kickT > 0) { pd(foot, local(f, pel, 0.9, 0.06, -0.12), 1100, 40, 320, c); return; }
+    if (k === 0 && f.kickT > 0) { pd(foot, local(f, pel, 1.05, 0.06, -0.1), 1200, 40, 360, c); return; }
     if (f.lift[k]) {
       const near = d < 0.04;
       pd(foot, { x: s.x, y: near ? 0.04 : 0.17, z: s.z }, 420, 30, 120, c);
@@ -569,7 +574,7 @@ function control(f) {
     const knee = p[fi - 1];
     if (attached(fi - 1)) pd(knee, local(f, lerpP(pel, foot, 0.5), 0.13, 0, 0), 140, 12, 50, c);
   });
-  if (inp.kick && f.kickCd <= 0 && f.ctrl > 0.45 && attached(FOOT_R) && f.stam > 0.15) { f.kickT = 0.32; f.kickCd = 1.3; f.kicked = false; f.stam -= 0.12; }
+  if (inp.kick && f.kickCd <= 0 && f.ctrl > 0.45 && attached(FOOT_R) && f.stam > 0.15) { f.kickT = 0.38; f.kickCd = 1.2; f.kicked = false; f.stam -= 0.12; }
   // weapon hand: pulled toward the aim point within arm's reach of the right shoulder. Its force is capped,
   // so heavy weapons take longer to get moving and longer to stop: momentum is what does the damage.
   const sh = p[SH_R];
@@ -591,7 +596,7 @@ function control(f) {
     f.swingSide = (Fx * Rx + Fz * Rz) / fmax;
     // wrist: steers the blade along the arm's line bent upward (guard), or straight along it (thrust grip)
     let ax = h.x - sh.x, ay = h.y - sh.y, az = h.z - sh.z; const al = len3(ax, ay, az) || 1; ax /= al; ay /= al; az /= al;
-    const bend = inp.thrust ? 0.05 : 0.75;
+    const bend = inp.thrust || W.gun ? 0.05 : 0.75;
     // rotate the arm direction toward "up" by bend, about arm × up (biased to the body's right axis so it
     // stays defined when the arm points straight up; then the blade drops back over the shoulder)
     let kx = -az + Rx * 0.15, kz = ax + Rz * 0.15; const kl = Math.hypot(kx, kz) || 1; kx /= kl; kz /= kl;
@@ -601,7 +606,7 @@ function control(f) {
     const bz = az * cb + (kx * ay) * sb + kz * dot * (1 - cb);
     let ux = bx, uy = by, uz = bz;
     // flipped grip: the blade lieth flat across the body (sideways) instead of standing upright
-    if (inp.flip && !inp.thrust) { ux = F[0] * 0.5 + Rx * 0.87; uy = 0.05; uz = F[2] * 0.5 + Rz * 0.87; const ul = len3(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul; }
+    if (inp.flip && !inp.thrust && !W.gun) { ux = F[0] * 0.5 + Rx * 0.87; uy = 0.05; uz = F[2] * 0.5 + Rz * 0.87; const ul = len3(ux, uy, uz) || 1; ux /= ul; uy /= ul; uz /= ul; }
     const L = W.len, dt = { x: h.x + ux * L, y: h.y + uy * L, z: h.z + uz * L };
     const [tvx, tvy, tvz] = vel(tip);
     const wmax = W.wrist * (0.4 + 0.6 * c) * (inp.thrust ? 1.3 : 1);
@@ -610,6 +615,7 @@ function control(f) {
     if (wl > wmax) { const k = wmax / wl; wx *= k; wy *= k; wz *= k; }
     tip.fx += wx; tip.fy += wy; tip.fz += wz; h.fx -= wx * 0.6; h.fy -= wy * 0.6; h.fz -= wz * 0.6;
     if (attached(ELB_R)) pd(p[ELB_R], local(f, lerpP(sh, h, 0.5), -0.03, 0.08, -0.1), 60, 6, 30, c);
+    if (W.gun) gunControl(f, h, tip);
   }
   if (attached(ELB_L)) pd(p[ELB_L], local(f, p[SH_L], 0.1, -0.06, -0.24), 50, 6, 25, c);
   if (attached(HAND_L) && !(W.hands === 2 && f.armed)) pd(p[HAND_L], local(f, p[SH_L], 0.2, 0.1, -0.32), 80, 8, 40, c);
@@ -688,6 +694,54 @@ function sever(w, B, seg) {
   w.events.push({ type: 'sever', to: B, seg: B.segs.indexOf(seg), at: a, leg, weaponArm: !B.armed, x: q.x, y: q.y, z: q.z });
   if (leg || !B.armed) out(w, B, leg ? 'leg' : 'disarmed');
 }
+// ---------- The RPG ----------
+// thrust fireth; the flip toggle is the switch: off fireth one rocket per pull, on fireth as fast as it can while held
+function gunControl(f, h, tip) {
+  const inp = f.input;
+  f.auto = !!inp.flip;
+  f.fireCd = Math.max(0, (f.fireCd || 0) - DT);
+  if (!inp.thrust) { f.pulled = false; return; }
+  if (f.fireCd > 0 || (f.pulled && !f.auto) || f.ctrl < 0.3) return;
+  f.pulled = true; f.fireCd = f.auto ? 0.16 : 0.9;
+  const L = len3(tip.x - h.x, tip.y - h.y, tip.z - h.z) || 1, dx = (tip.x - h.x) / L, dy = (tip.y - h.y) / L, dz = (tip.z - h.z) / L;
+  (f.shots || (f.shots = [])).push({ x: tip.x + dx * 0.1, y: tip.y + dy * 0.1, z: tip.z + dz * 0.1, vx: dx * 26, vy: dy * 26, vz: dz * 26 });
+  // recoil kicketh the launcher back into the shoulder
+  h.px += dx * 0.012; h.py += dy * 0.012; h.pz += dz * 0.012; tip.px += dx * 0.03; tip.py += dy * 0.03 - 0.01; tip.pz += dz * 0.03;
+}
+function stepRockets(w) {
+  const rs = w.rockets || (w.rockets = []);
+  for (const f of w.f) if (f.shots && f.shots.length) { for (const s of f.shots) { rs.push(Object.assign({ owner: f, t: 0, id: (w.rid = (w.rid || 0) + 1) }, s)); w.events.push({ type: 'fire', from: f, x: s.x, y: s.y, z: s.z }); } f.shots.length = 0; }
+  for (let i = rs.length - 1; i >= 0; i--) {
+    const r = rs[i]; r.t += DT; r.vy -= 1.5 * DT;
+    r.x += r.vx * DT; r.y += r.vy * DT; r.z += r.vz * DT;
+    let hit = r.y < 0.04 || Math.hypot(r.x, r.z) > ARENA + 0.5 || r.t > 3;
+    if (!hit) for (const B of w.f) {
+      if (B === r.owner && r.t < 0.25) continue;
+      for (const sg of B.segs) { if (sg.off) continue; const [, , d2] = closestSegSeg(r, r, B.p[sg.a], B.p[sg.b]); if (d2 < (sg.r + 0.2) * (sg.r + 0.2)) { hit = true; break; } }
+      if (hit) break;
+    }
+    if (hit) { explode(w, r); rs.splice(i, 1); }
+  }
+}
+function explode(w, r) {
+  const RAD = 2.6;
+  w.events.push({ type: 'boom', from: r.owner, x: r.x, y: Math.max(0.05, r.y), z: r.z });
+  for (const B of w.f) {
+    const pel = B.p[PELV], d = len3(pel.x - r.x, pel.y - r.y, pel.z - r.z);
+    if (d > RAD) continue;
+    const k = 1 - d / RAD;
+    // everyone near is flung away and up; only foes are wounded (the owner is spared his own blast)
+    for (const q of B.p) { const qx = q.x - r.x, qy = q.y - r.y + 0.4, qz = q.z - r.z, ql = len3(qx, qy, qz) || 1; const push = 0.09 * k; q.px -= qx / ql * push; q.py -= qy / ql * push * 0.8; q.pz -= qz / ql * push; }
+    B.stuck = null;
+    if (B === r.owner || allies(B, r.owner) || !B.alive) continue;
+    const dmg = 70 * k * k + 8;
+    B.hp -= dmg; B.hitFlash = 1; r.owner.hits++; r.owner.dmgDealt += dmg; B.dmgTaken += dmg;
+    knockDown(B, 1.4 + k);
+    w.events.push({ type: 'hit', from: r.owner, to: B, zone: 'torso', dmg, x: pel.x, y: pel.y, z: pel.z, nx: 0, ny: 1, nz: 0, speed: 20, blast: true });
+    if (B.hp <= 0) { B.hp = 0; out(w, B, 'beaten'); }
+  }
+}
+
 function out(w, B, why) {
   if (!B.alive) return;
   B.alive = false; B.out = why; B.ctrl = 0; B.down = 1e9;
@@ -823,7 +877,7 @@ function kickHit(w, A, B) {
   if (A.kickT < 0.06 || A.kicked || !B.alive) return;
   const ft = A.p[FOOT_R], pa = B.p[PELV], pb = B.p[NECK];
   const [s] = closestSegSeg(ft, ft, pa, pb), q = lerpP(pa, pb, s);
-  if (len3(ft.x - q.x, ft.y - q.y, ft.z - q.z) > 0.3) return;
+  if (len3(ft.x - q.x, ft.y - q.y, ft.z - q.z) > 0.4) return;
   A.kicked = true;
   const F = A.F, push = 0.025;
   for (const p of B.p) { p.px -= F[0] * push; p.pz -= F[2] * push; }
@@ -929,6 +983,7 @@ function step(w) {
     }
   }
   for (const f of w.f) { const t = f.p[TIP]; f.trail.push([t.x, t.y, t.z]); if (f.trail.length > 10) f.trail.shift(); }
+  stepRockets(w);
   w.t += DT;
 }
 
@@ -943,7 +998,7 @@ function predict(w, f) {
     f.F = [fx / fl, 0, fz / fl];
   }
   if (f.aim) { const q = local(f, f.p[SH_R], f.aim[0], f.aim[1], f.aim[2]); f.input.tx = q.x; f.input.ty = q.y; f.input.tz = q.z; }
-  const kt = f.kickT; control(f); f.kickT = Math.max(0, kt - DT); f.kickCd = Math.max(0, f.kickCd - DT);
+  const kt = f.kickT, fc = f.fireCd, pu = f.pulled; control(f); f.fireCd = fc; f.pulled = pu; if (f.shots) f.shots.length = 0; f.kickT = Math.max(0, kt - DT); f.kickCd = Math.max(0, f.kickCd - DT);
   integrate(f);
   for (let it = 0; it < ITER; it++) constraints(f);
 }
@@ -1154,6 +1209,8 @@ const sfx = (() => {
       [1, 2.71, 5.18, 8.4].forEach((k, i) => partial(base * k, 0.16 * v / (1 + i * 0.6), 0.5 + v * 0.6 - i * 0.08));
       noiseBurst('highpass', 3000, 0.7, 0.3 * v, 0.06);
     },
+    boom() { if (!ac) return; noiseBurst('lowpass', 900, 0.6, 1.0, 0.7); noiseBurst('lowpass', 200, 0.8, 0.9, 1.1); this.thud(1); },
+    launch() { if (!ac) return; noiseBurst('bandpass', 1400, 0.8, 0.5, 0.35); noiseBurst('lowpass', 500, 0.9, 0.4, 0.2); },
     thud(v) {
       if (!ac) return; v = clamp(v, 0.15, 1);
       noiseBurst('lowpass', 380, 0.9, 0.7 * v, 0.18);
@@ -1632,6 +1689,15 @@ function buildWeapon(Wp) {
     const pt = addMesh(g, new T.ConeGeometry(0.03 * bw, bl * 0.14, 4), STEEL()); pt.scale.set(0.75, 1, 0.13); pt.position.y = 0.085 + bl * 0.93;
   } else if (Wp === WEAPONS.club) {
     const c = addMesh(g, new T.CylinderGeometry(0.05, 0.022, len + 0.08, 8), mat('#8A6440', { roughness: 0.95 })); c.position.y = (len - 0.08) / 2;
+  } else if (look === 'rpg') {
+    // a launcher tube on the shoulder, warhead at the front, and the switch (lit when set to full auto)
+    const olive = mat('#4E5A2E', { roughness: 0.7 });
+    const tube = addMesh(g, new T.CylinderGeometry(0.045, 0.045, len + 0.35, 12), olive); tube.position.y = (len - 0.35) / 2;
+    const war = addMesh(g, new T.ConeGeometry(0.07, 0.24, 12), mat('#6B6F3A', { roughness: 0.6 })); war.position.y = len + 0.04;
+    const bulb = addMesh(g, sphereGeo, mat('#6B6F3A', { roughness: 0.6 })); bulb.scale.set(0.07, 0.09, 0.07); bulb.position.y = len - 0.1;
+    box(0.03, 0.12, 0.05, grip, 0, -0.02).position.z = -0.06;
+    box(0.06, 0.05, 0.12, DARKSTEEL(), 0, 0.25).position.z = -0.08;
+    const sw = box(0.03, 0.03, 0.03, mat('#C83A2A', { emissive: '#C83A2A', emissiveIntensity: 0.4 }), 0.05, 0.05); g.userData.sw = sw;
   } else if (look === 'hammer') {
     cyl(0.016, len, wood, len / 2 - 0.08);
     cyl(0.02, 0.14, grip, -0.02);
@@ -1700,6 +1766,7 @@ function updateFighterView(v, firstPerson) {
   const ws = want.length();
   if (ws > 1e-4) { want.multiplyScalar(1 / ws); if (want.dot(edge) < 0 && ws < 0.5) want.negate(); edge.lerp(want, Math.min(1, ws * ws * 0.6)).addScaledVector(dir, -edge.dot(dir)).normalize(); }
   v.weapon.position.set(h.x, h.y, h.z); basis(v.weapon, dir, new T.Vector3().crossVectors(edge, dir));
+  if (v.weapon.userData.sw) { const on = !!f.input.flip; v.weapon.userData.sw.material.color.set(on ? '#3AD04A' : '#C83A2A'); v.weapon.userData.sw.material.emissive.set(on ? '#3AD04A' : '#C83A2A'); }
   // cut ends get a cap on both sides (red and bleeding when blood is on)
   while (v.stumps.length < f.stumps.length) {
     const s = f.stumps[v.stumps.length];
@@ -1903,6 +1970,12 @@ function cycleTarget() {
 const PART_NAME = { [I.SH_R]: 'sword arm', [I.ELB_R]: 'sword hand', [I.SH_L]: 'arm', [I.ELB_L]: 'hand', [I.PELV]: 'leg', [I.KNEE_R]: 'leg', [I.KNEE_L]: 'leg' };
 function handleEvents() {
   for (const e of world.events) {
+    if (e.type === 'fire') { sfx.launch(); dust(e.x, e.y, e.z, 3); if (e.from === player) shake = Math.max(shake, 0.25); continue; }
+    if (e.type === 'boom') {
+      sfx.boom(); sparks(e.x, e.y, e.z, 40, 7); dust(e.x, e.y, e.z, 14); cheer = Math.min(1, cheer + 0.35);
+      const near = player ? Math.hypot(player.p[I.PELV].x - e.x, player.p[I.PELV].z - e.z) : 9; shake = Math.max(shake, clamp(1.4 - near * 0.25, 0.2, 1));
+      continue;
+    }
     if (e.type === 'kick') {
       sfx.thud(0.7); shake = Math.max(shake, e.from === player || e.to === player ? 0.5 : 0.15); cheer = Math.min(1, cheer + 0.2);
       if (e.from === player) pop(e.x, e.y + 0.3, e.z, 'Booted!', '#E8C46A'); else if (e.to === player) pop(e.x, e.y + 0.3, e.z, 'Kicked!', '#FF8A6A');
@@ -2122,7 +2195,7 @@ function renderArmory() {
       const speed = clamp(1.3 - it.tip * 0.6 + (it.hands === 2 ? 0.15 : 0), 0, 1), power = clamp(it.dmg * it.tip / 2.4, 0, 1), armorP = it.kind === 'blunt' ? 0.9 : it.kind === 'chop' ? 0.45 : 0.15;
       stats = '<span class="stat">Power ' + bars(power) + '</span><span class="stat">Speed ' + bars(speed) + '</span><span class="stat">Reach ' + bars(it.len / 1.8) + '</span><span class="stat">Vs armour ' + bars(armorP) + '</span>';
       desc = ({ club:'A knotted stick. Better than thy fists, but not by much.', arming:'Light and quick, with a point for thrusting. A swift cut may take a limb.', mace:'A flanged steel head. It crusheth through mail and plate, but never cutteth.',
-        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', dagger:'A short stabbing blade. Quick as a wasp, and as short of reach.', falchion:'A broad, heavy single edge that chops like a cleaver.', hammer:'A steel beak and a flat face. Plate ringeth like a bell beneath it.', estoc:'A long stiff spike of a sword, made to find the gaps in armour.', morningstar:'A spiked iron ball upon a haft. Cruel against any armour.', greataxe:'A Danish two-handed axe. Wide swings that take limbs clean off.', greatsword:'A great two-handed blade, longer than a man is tall to the shoulder.', halberd:'Axe blade, hook and spike on a long pole. Keep thy foes far off.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
+        axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', dagger:'A short stabbing blade. Quick as a wasp, and as short of reach.', falchion:'A broad, heavy single edge that chops like a cleaver.', hammer:'A steel beak and a flat face. Plate ringeth like a bell beneath it.', estoc:'A long stiff spike of a sword, made to find the gaps in armour.', morningstar:'A spiked iron ball upon a haft. Cruel against any armour.', greataxe:'A Danish two-handed axe. Wide swings that take limbs clean off.', greatsword:'A great two-handed blade, longer than a man is tall to the shoulder.', halberd:'Axe blade, hook and spike on a long pole. Keep thy foes far off.', rpg:'A rocket launcher, somehow. Thrust to fire. Left-click flicketh the switch on the side for full auto.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.' })[id];
       desc += it.hands === 2 ? ' Two-handed.' : '';
     } else {
       stats = '<span class="stat">Protection ' + bars(it.val) + '</span><span class="stat">Weight ' + bars(it.kg / 14) + '</span>';
@@ -2142,6 +2215,7 @@ function pause() {
   if (mode !== 'fight') return;
   mode = 'pause'; if (!mp.on) ads.gameplay(false);
   $('pauseTitle').textContent = mp.on ? 'The Fight Goeth On' : 'A Moment\'s Rest';
+  renderPauseWeapon();
   show('pauseScreen');
 }
 function resume() { if (mode !== 'pause') return; mode = 'fight'; ads.gameplay(true); show(null); lockPointer(); }
@@ -2281,6 +2355,47 @@ function trainingWeapon(n) {
   sfx.clang(0.3);
 }
 // swap one fighter in the ring for a fresh one (endless foes, a mended straw knight)
+// change a fighter's weapon in the middle of a fight (pause menu); the new blade cometh out along the old one
+function swapWeapon(f, id) {
+  if (!f || !WEAPONS[id] || !f.alive || f.weapon === WEAPONS[id]) return;
+  const h = f.p[I.HAND_R], t = f.p[I.TIP], L = Math.hypot(t.x - h.x, t.y - h.y, t.z - h.z) || 1, W2 = WEAPONS[id];
+  t.x = h.x + (t.x - h.x) / L * W2.len; t.y = h.y + (t.y - h.y) / L * W2.len; t.z = h.z + (t.z - h.z) / L * W2.len; t.px = t.x; t.py = t.y; t.pz = t.z;
+  f.weapon = W2; f.armed = true; f.stuck = null; f.shots = null; f.fireCd = 0;
+  const i = fighters.indexOf(f), v = views[i];
+  if (v) { v.grp.remove(v.weapon); v.weapon = buildWeapon(W2); v.grp.add(v.weapon); v.edge = null; }
+}
+function pauseWeapons() {
+  // with friends every weapon may be tried; alone, the ones thou ownest (any in the training yard)
+  const all = mp.on || solo.kind === 'training';
+  return Object.keys(WEAPONS).filter(id => all || save.own.weapon.includes(id));
+}
+function renderPauseWeapon() {
+  const sel = $('pauseWeapon'), row = $('pauseWeaponRow');
+  const ok = player && player.alive && !mp.watching;
+  row.classList.toggle('hidden', !ok);
+  if (!ok) return;
+  sel.innerHTML = pauseWeapons().map(id => '<option value="' + id + '"' + (WEAPONS[id] === player.weapon ? ' selected' : '') + '>' + esc(WEAPONS[id].name) + '</option>').join('');
+}
+function pickPauseWeapon(id) {
+  if (!pauseWeapons().includes(id)) return;
+  sfx.click();
+  if (mp.on && mp.role === 'client') { mpSend(mp.host, { t: 'swap', w: id }); swapWeapon(player, id); }
+  else swapWeapon(player, id);
+  if (!mp.on && solo.kind !== 'training') { save.eq.weapon = id; persist(); }
+}
+const rocketMeshes = [], rocketGeo = new T.CylinderGeometry(0.035, 0.035, 0.3, 8), rocketMat = new T.MeshStandardMaterial({ color: '#5C6236', roughness: 0.6 });
+function drawRockets(dt) {
+  const rs = (world && world.rockets) || [];
+  for (let i = 0; i < Math.max(rs.length, rocketMeshes.length); i++) {
+    let m = rocketMeshes[i];
+    if (i >= rs.length) { if (m) m.visible = false; continue; }
+    if (!m) { m = new T.Mesh(rocketGeo, rocketMat); scene.add(m); rocketMeshes.push(m); }
+    const r = rs[i];
+    if (mp.on && mp.role === 'client') { r.x += r.vx * dt; r.y += r.vy * dt; r.z += r.vz * dt; }
+    m.visible = true; m.position.set(r.x, r.y, r.z); _q.setFromUnitVectors(_up, _v.set(r.vx, r.vy, r.vz).normalize()); m.quaternion.copy(_q);
+    if (Math.random() < 0.6) dust(r.x - r.vx * 0.02, r.y, r.z - r.vz * 0.02, 1);
+  }
+}
 function respawn(i, f) {
   disposeView(views[i]);
   f.idx = i; fighters[i] = f; world.f[i] = f; views[i] = buildFighter(f);
@@ -2430,6 +2545,9 @@ function mpHostRecv(conn, d) {
     if (mp.playing) pop(0, 2.2, 0, cleanName(d.name) + ' entereth the Pit', '#D7A441');
   } else if (d.t === 'gear') {
     const e = mp.lobby.find(x => x.id === conn.peer); if (e) { e.gear = gearOf(d.gear); mpBroadcastLobby(); }
+  } else if (d.t === 'swap') {
+    const f = fighters.find(x => x.netId === conn.peer);
+    if (f && WEAPONS[d.w]) swapWeapon(f, d.w);
   } else if (d.t === 'in') {
     const f = fighters.find(x => x.netId === conn.peer);
     if (!f || !Array.isArray(d.a)) return;
@@ -2815,10 +2933,11 @@ function mpPackEvent(e) {
   return o;
 }
 function mpSnapshot() {
-  return { t: 'snap', ev: mp.events, f: fighters.map(f => {
+  const snap = { t: 'snap', ev: mp.events, f: fighters.map(f => {
     const pos = []; for (const q of f.p) pos.push(r3(q.x), r3(q.y), r3(q.z));
-    return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash), Math.round(f.stam * 100) / 100, f.kickT > 0 ? 1 : 0];
-  }) };
+    return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash), Math.round(f.stam * 100) / 100, f.kickT > 0 ? 1 : 0, Object.keys(WEAPONS).find(k => WEAPONS[k] === f.weapon)];
+  }), r: (world.rockets || []).map(r => [r3(r.x), r3(r.y), r3(r.z), r3(r.vx), r3(r.vy), r3(r.vz)]) };
+  return snap;
 }
 function mpApplySnap(d) {
   if (!world || !Array.isArray(d.f) || d.f.length !== fighters.length) return;
@@ -2830,6 +2949,7 @@ function mpApplySnap(d) {
   const now = performance.now();
   if (mp.lastSnapAt) mp.snapGap = (mp.snapGap || 50) * 0.9 + Math.min(300, now - mp.lastSnapAt) * 0.1;
   mp.lastSnapAt = now;
+  if (Array.isArray(d.r)) world.rockets = d.r.map(a => ({ x: a[0], y: a[1], z: a[2], vx: a[3], vy: a[4], vz: a[5] }));
   d.f.forEach((a, i) => {
     const f = fighters[i], pos = a[0];
     if (f !== player || mp.watching) { (f.hist || (f.hist = [])).push({ t: now, pos }); if (f.hist.length > 12) f.hist.shift(); }
@@ -2842,6 +2962,7 @@ function mpApplySnap(d) {
     if (f !== player || player.lock == null || !fighters[player.lock] || !fighters[player.lock].alive) f.target = fighters[a[8]] || f.target;
     else f.target = fighters[player.lock];
     f.hitFlash = a[9];
+    if (a[12] && WEAPONS[a[12]] && f.weapon !== WEAPONS[a[12]]) swapWeapon(f, a[12]);
     if (f !== player) { f.stam = a[10]; f.kickT = a[11] ? 0.2 : 0; } else if (Math.abs(f.stam - a[10]) > 0.15) f.stam = a[10];
   });
 }
@@ -2911,6 +3032,7 @@ document.addEventListener('click', e => {
     });
   }
 });
+$('pauseWeapon').addEventListener('change', e => pickPauseWeapon(e.target.value));
 for (const id of ['mpWeapon', 'mpHead', 'mpTorso', 'mpLimbs']) $(id).addEventListener('change', () => { sfx.click(); mpGearChanged(); });
 $('mpName').addEventListener('change', () => { const n = mpSaveName(); if (mp.on && mp.role === 'host') { const me = mp.lobby.find(e => e.id === 'host'); if (me) { me.name = n; mpBroadcastLobby(); } } });
 $('mpMode').addEventListener('change', () => { if (mp.role !== 'host') return; sfx.click(); mp.rules = $('mpMode').value === 'teams' ? 'teams' : 'ffa'; mpBroadcastLobby(); });
@@ -2939,7 +3061,7 @@ fx.addEventListener('pointerdown', e => {
   if (e.pointerType === 'touch') { usingTouch = true; touch.aim = e.pointerId; if (mode === 'fight') { $('touch').classList.remove('hidden'); document.body.classList.add('touch'); } }
   if (e.button === 2) mouse.right = true;
   if (e.button === 1) { mouse.middle = true; e.preventDefault(); }
-  if (e.button === 0 && e.pointerType === 'mouse' && mode === 'fight' && document.pointerLockElement && $('controls').classList.contains('hidden')) { mouse.flip = !mouse.flip; sfx.click(); }
+  if (e.button === 0 && e.pointerType === 'mouse' && mode === 'fight' && document.pointerLockElement && $('controls').classList.contains('hidden')) { mouse.flip = !mouse.flip; sfx.click(); if (player && player.weapon.gun) { const h = player.p[I.HAND_R]; pop(h.x, h.y + 0.25, h.z, mouse.flip ? 'Switch on: full auto!' : 'Switch off: single shot', mouse.flip ? '#7CE08A' : '#E8C46A'); } }
   if (!document.pointerLockElement) { mouse.x = e.clientX - padX(); mouse.y = e.clientY; }
   mouse.on = true;
   if (mode === 'fight' && e.pointerType === 'mouse') { lockPointer(); if (!$('controls').classList.contains('hidden') && e.button === 0) controlsCard(false); }
@@ -3054,7 +3176,7 @@ function frame(now) {
     hideNearCamera(pv, fp);
     fighters.forEach((f, i) => updateTrail(trails[i], f));
     const pdt = mode === 'fight' ? dt * timeScale : dt;
-    updateLayer(sparkL, pdt); updateLayer(dustL, pdt); updateLayer(bloodL, pdt);
+    drawRockets(pdt); updateLayer(sparkL, pdt); updateLayer(dustL, pdt); updateLayer(bloodL, pdt);
     for (const q of pops) q.t += dt;
     pops = pops.filter(q => q.t < 1.1);
     updateCrowd(clock);
