@@ -998,7 +998,10 @@ function predict(w, f) {
     f.F = [fx / fl, 0, fz / fl];
   }
   if (f.aim) { const q = local(f, f.p[SH_R], f.aim[0], f.aim[1], f.aim[2]); f.input.tx = q.x; f.input.ty = q.y; f.input.tz = q.z; }
-  const kt = f.kickT, fc = f.fireCd, pu = f.pulled; control(f); f.fireCd = fc; f.pulled = pu; if (f.shots) f.shots.length = 0; f.kickT = Math.max(0, kt - DT); f.kickCd = Math.max(0, f.kickCd - DT);
+  const kt = f.kickT, fc = f.fireCd, pu = f.pulled; control(f); f.fireCd = fc; f.pulled = pu; if (f.shots) f.shots.length = 0;
+  // a kick control() hath just begun must stand, else the joiner's foot never flieth (and the host, taking his body as given, never landeth it)
+  if (f.kickT <= kt) f.kickT = Math.max(0, kt - DT);
+  f.kickCd = Math.max(0, f.kickCd - DT);
   integrate(f);
   for (let it = 0; it < ITER; it++) constraints(f);
 }
@@ -2556,7 +2559,8 @@ function mpHostRecv(conn, d) {
     Object.assign(f.input, { thrust: !!d.th, flip: !!d.fl, run: !!d.ru, kick: !!d.kk, move: n(d.mv, -1, 1), strafe: n(d.st, -1, 1), crouch: !!d.cr });
     f.lock = Number.isInteger(d.lk) && fighters[d.lk] ? d.lk : null;
     // the joiner's own body is his to steer: the host taketh it as given (unless he is down), so his blade landeth where he seeth it
-    if (Array.isArray(d.b) && d.b.length === f.p.length * 3 && f.alive && f.down <= 0) { f.netBody = d.b.map(v => +v || 0); f.netBodyT = performance.now(); }
+    // a body from the last round (still in flight when this one began) would drag the new fighter apart: only this round's count
+    if (Array.isArray(d.b) && d.b.length === f.p.length * 3 && f.alive && f.down <= 0 && d.rd === mp.round && fightT > 0.3) { f.netBody = d.b.map(v => +v || 0); f.netBodyT = performance.now(); }
     else f.netBody = null;
   }
 }
@@ -2630,7 +2634,7 @@ function mqttPacket(type, body) { return new Uint8Array([type, ...mqttLen(body.l
 function relayConnect(onMsg, done) {
   // every broker is tried at once and kept: two players whose networks each reach a different broker still meet,
   // because everything is published on all of them and duplicates are dropped by their tag
-  const me = Math.random().toString(36).slice(2, 10), subs = [], socks = [], seen = new Set(), seenQ = [];
+  const me = Math.random().toString(36).slice(2, 10), subs = [], socks = [], seen = new Set(), seenQ = [], lastN = {};
   let n = 0, pid = 1, called = false, closed = false, ping = 0, pending = RELAY_BROKERS.length;
   const enc = new TextEncoder(), dec = new TextDecoder();
   const subPkt = topic => mqttPacket(0x82, [pid >> 8, pid++ & 255, ...mqttStr(topic), 0]);
@@ -2638,7 +2642,7 @@ function relayConnect(onMsg, done) {
   const R = {
     sub(topic) { subs.push(topic); for (const s of socks) if (s.ok) s.ws.send(subPkt(topic)); },
     pub(topic, obj) {
-      const payload = enc.encode(JSON.stringify(Object.assign({ _q: me + (n++) }, obj))), t = mqttStr(topic);
+      const payload = enc.encode(JSON.stringify(Object.assign({ _q: me + n, _s: me, _n: n++ }, obj))), t = mqttStr(topic);
       const body = new Uint8Array(t.length + payload.length); body.set(t); body.set(payload, t.length);
       const head = [0x30, ...mqttLen(body.length)], pkt = new Uint8Array(head.length + body.length);
       pkt.set(head); pkt.set(body, head.length);
@@ -2649,6 +2653,10 @@ function relayConnect(onMsg, done) {
   };
   const got = m => {
     if (m && m._q) { if (seen.has(m._q)) return; seen.add(m._q); seenQ.push(m._q); if (seenQ.length > 600) seen.delete(seenQ.shift()); }
+    // brokers deliver at different speeds, so a stale body or snapshot can arrive after a newer one: drop it,
+    // or the host yanketh the joiner's body (and sword) back and forth
+    const st = m && (m.t === 'snap' || (m.d && m.d.t === 'in'));
+    if (st && m._s != null) { const k = m._s + (m.d ? 'i' : 's'); if (m._n <= (lastN[k] ?? -1)) return; lastN[k] = m._n; }
     onMsg(m);
   };
   for (const entry of RELAY_BROKERS) {
@@ -2838,6 +2846,8 @@ function mpStartRound(spec) {
 // shared by the gauntlet and multiplayer: show the fight HUD and drop into first person
 function enterRing(title, small, label) {
   mode = 'fight'; fightT = 0; endT = -1; result = null; introT = 0; hitStop = 0; slowMo = 0; acc = 0;
+  // every fight beginneth with a fresh grip: no flip or held buttons carried over from the last one
+  mouse.flip = false; mouse.middle = false; mouse.right = false; mp.predAcc = 0; mp.hist = null;
   mouse.x = W / 2; mouse.y = H / 2;
   show(null); $('hud').classList.remove('hidden'); $('vig').classList.remove('hidden'); document.body.classList.add('fighting');
   $('boutLbl').textContent = label;
@@ -2884,7 +2894,7 @@ function mpUpdate(dt) {
       mp.sendT = 0;
       const inp = player.input, a = player.aim;
       const body = []; if (player.alive && player.down <= 0) for (const q of player.p) body.push(r3(q.x), r3(q.y), r3(q.z));
-      mpSend(mp.host, { t: 'in', b: body.length ? body : null, a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, ru: inp.run ? 1 : 0, kk: inp.kick ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
+      mpSend(mp.host, { t: 'in', rd: mp.round, b: body.length ? body : null, a: [+a[0].toFixed(3), +a[1].toFixed(3), +a[2].toFixed(3)], th: inp.thrust ? 1 : 0, fl: inp.flip ? 1 : 0, ru: inp.run ? 1 : 0, kk: inp.kick ? 1 : 0, mv: inp.move, st: inp.strafe, cr: inp.crouch ? 1 : 0, lk: player.lock != null ? player.lock : null });
     }
     // own body: predicted locally at the sim rate, then eased toward the host (snapped only if far adrift)
     if (!mp.watching && player.alive) {
@@ -2933,7 +2943,7 @@ function mpPackEvent(e) {
   return o;
 }
 function mpSnapshot() {
-  const snap = { t: 'snap', ev: mp.events, f: fighters.map(f => {
+  const snap = { t: 'snap', rd: mp.round, ev: mp.events, f: fighters.map(f => {
     const pos = []; for (const q of f.p) pos.push(r3(q.x), r3(q.y), r3(q.z));
     return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash), Math.round(f.stam * 100) / 100, f.kickT > 0 ? 1 : 0, Object.keys(WEAPONS).find(k => WEAPONS[k] === f.weapon)];
   }), r: (world.rockets || []).map(r => [r3(r.x), r3(r.y), r3(r.z), r3(r.vx), r3(r.vy), r3(r.vz)]) };
@@ -2941,6 +2951,7 @@ function mpSnapshot() {
 }
 function mpApplySnap(d) {
   if (!world || !Array.isArray(d.f) || d.f.length !== fighters.length) return;
+  if (d.rd != null && d.rd !== mp.round) return;  // a late snapshot of the last round must not move this round's fighters
   for (const e of d.ev || []) {
     const to = fighters[e.to], from = fighters[e.from];
     if (e.type === 'sever' && to && to.segs[e.seg] && !to.segs[e.seg].off) { const tmp = { events: [] }; SB.sever(tmp, to, to.segs[e.seg]); }
