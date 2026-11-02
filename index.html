@@ -2918,12 +2918,15 @@ function mpUpdate(dt) {
       f.smoothed = true;
     }
     const pp = player && player.p[I.PELV], ownNear = !!pp && pp.tx != null && Math.abs(pp.tx - pp.x) + Math.abs(pp.tz - pp.z) < 0.8;
+    const ownDx = ownNear ? (pp.tx - pp.x) * kOwn : 0, ownDz = ownNear ? (pp.tz - pp.z) * kOwn : 0;
+    if (ownNear && !mp.watching && player.alive && player.down <= 0) { player.baseX += ownDx; player.baseZ += ownDz; }
     for (const f of fighters) for (const q of f.p) {
       if (q.tx == null || (f.smoothed && f.hist && f.hist.length >= 2 && !(f === player && !mp.watching))) continue;
       // own body: judged as a whole by the pelvis, never point by point; else a fast swing to the side, where the host's
       // older copy of the blade lieth far off, would snap the tip alone to it and leave the sword fighting itself
       if (f === player && !mp.watching && player.alive && player.down <= 0 && ownNear) {
-        q.x += (q.tx - q.x) * kOwn; q.y += (q.ty - q.y) * kOwn; q.z += (q.tz - q.z) * kOwn; q.px += (q.tx - q.px) * kOwn; q.py += (q.ty - q.py) * kOwn; q.pz += (q.tz - q.pz) * kOwn;
+        // only where thou standest is nudged, and the whole body sideth along rigidly: the swing itself is never pulled back
+        q.x += ownDx; q.z += ownDz; q.px += ownDx; q.pz += ownDz;
         continue;
       }
       const ox = q.x, oy = q.y, oz = q.z, s = DT / Math.max(dt, 1e-3);
