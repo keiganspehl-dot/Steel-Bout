@@ -307,6 +307,7 @@
       const ns = makeMove(st, m);
       let v = -search(ns, depth - 1, -Infinity, Infinity, 1);
       if (ns.keys.filter(k => k === ns.keys[ns.keys.length - 1]).length >= 2) v -= 30; // avoid shuffling
+      if (m.cap && typeOf(m.piece) === 'k') v -= 600; // a king that loses its duel loses the game
       v += (Math.random() - 0.5) * (level === 1 ? 120 : level === 2 ? 40 : 10);
       if (v > bestV) { bestV = v; best = m; }
     }
