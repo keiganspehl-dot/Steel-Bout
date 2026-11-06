@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Gunmate</title>
+<meta name="description" content="Chess where every capture is a first-person gunfight. Play your friends online.">
+<style>
+@font-face { font-family: 'Grenze'; src: url(data:font/woff2;base64,/*FONT*/) format('woff2'); font-weight: 100 900; font-display: block; }
+:root {
+  --ink: #1C1714; --parch: #F1E4CA; --smoke: rgba(34,27,23,.9); --gold: #D7A441; --goldD: #9E7429; --crimson: #A9312B; --crimsonD: #6E1D1A;
+  --royal: #2E4E7C; --steel: #B9C3CC; --steelD: #5F6A75; --ember: #E3762D; --sand: #C8A776; --leather: #76502F;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1C1714; color: var(--parch); font: 15px/1.35 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; user-select: none; -webkit-user-select: none; touch-action: none; }
+canvas#gl { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+.hide { display: none !important; }
+.layer { position: fixed; inset: 0; pointer-events: none; }
+.layer > * { pointer-events: auto; }
+.serif { font-family: 'Grenze', Georgia, serif; }
+/* ---------- hand-set title ---------- */
+.title { font-family: 'Grenze', Georgia, serif; font-weight: 800; font-size: clamp(54px, 11vw, 128px); line-height: .9; letter-spacing: .02em; text-align: center; margin: 0; white-space: nowrap; }
+.title span { display: inline-block; position: relative; transform: translateY(var(--y)) rotate(var(--r)); color: var(--gold);
+  -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill;
+  text-shadow: 0 3px 0 var(--goldD), 0 6px 0 var(--ink), 0 9px 14px rgba(0,0,0,.45);
+  background: linear-gradient(180deg, #F6D98E 0 48%, #C8902F 52% 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+  animation: bob 3.2s ease-in-out infinite; animation-delay: calc(var(--i) * -.37s); }
+.title span::after { content: attr(data-c); position: absolute; left: 0; top: 0; z-index: -1; -webkit-text-fill-color: var(--ink); -webkit-text-stroke: 6px var(--ink); }
+.title .c { background: linear-gradient(180deg, #E4685E 0 48%, #8F2722 52% 100%); -webkit-background-clip: text; background-clip: text; text-shadow: 0 3px 0 var(--crimsonD), 0 6px 0 var(--ink), 0 9px 14px rgba(0,0,0,.45); }
+@keyframes bob { 0%,100% { transform: translateY(var(--y)) rotate(var(--r)); } 50% { transform: translateY(calc(var(--y) - 4px)) rotate(calc(var(--r) * -.4)); } }
+.sub { text-align: center; font-family: 'Grenze', Georgia, serif; font-weight: 700; font-size: 24px; color: var(--parch); letter-spacing: .08em; margin: 10px 0 18px; -webkit-text-stroke: 1px var(--ink); paint-order: stroke fill; text-shadow: 0 2px 0 var(--ink), 0 0 12px rgba(28,23,20,.6); }
+/* ---------- panels and slab buttons ---------- */
+.panel { background: linear-gradient(180deg, rgba(48,38,31,.94), rgba(30,24,20,.94)); border: 2px solid var(--ink); border-radius: 6px; box-shadow: 0 0 0 1px rgba(215,164,65,.35) inset, 0 10px 30px rgba(0,0,0,.5); padding: 18px; }
+.btn { --bg: var(--crimson); --bgD: var(--crimsonD); position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 22px; border: 2px solid var(--ink); color: var(--parch);
+  font: 700 19px/1 'Grenze', Georgia, serif; letter-spacing: .04em; cursor: pointer; background: linear-gradient(180deg, color-mix(in srgb, var(--bg) 78%, #fff 22%) 0 8%, var(--bg) 10% 70%, var(--bgD) 100%);
+  clip-path: polygon(3% 0, 97% 4%, 100% 40%, 98.5% 100%, 2% 96%, 0 58%); box-shadow: 0 4px 0 var(--ink); transition: transform .12s, filter .12s; text-shadow: 0 2px 0 rgba(0,0,0,.5); }
+.btn::after { content: ''; position: absolute; inset: 5px; border: 1.5px dashed rgba(241,228,202,.45); pointer-events: none; clip-path: inherit; }
+.btn:hover { transform: translateY(-2px) rotate(-.6deg); filter: brightness(1.1); }
+.btn:active { transform: translateY(1px) scale(.97, .94); filter: brightness(.95); }
+.btn.gold { --bg: var(--gold); --bgD: var(--goldD); color: var(--ink); text-shadow: 0 1px 0 rgba(255,240,200,.5); }
+.btn.royal { --bg: var(--royal); --bgD: #1C3152; }
+.btn.steel { --bg: var(--steelD); --bgD: #3A424B; }
+.btn.small { min-height: 34px; padding: 6px 14px; font-size: 16px; }
+.btn[disabled] { filter: grayscale(.8) brightness(.6); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { .title span { animation: none; } .btn, .btn:hover, .btn:active { transition: none; transform: none; } }
+input, select { font: inherit; color: var(--parch); background: rgba(0,0,0,.35); border: 2px solid var(--ink); box-shadow: 0 0 0 1px rgba(215,164,65,.3) inset; border-radius: 4px; padding: 9px 10px; outline: none; }
+input:focus, select:focus { box-shadow: 0 0 0 1px var(--gold) inset; }
+label.row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 8px 0; }
+h2 { font-family: 'Grenze', Georgia, serif; color: var(--gold); margin: 0 0 10px; font-size: 26px; text-shadow: 0 2px 0 var(--ink); }
+.muted { color: #BFAE90; font-size: 13px; }
+/* ---------- title screen ---------- */
+#menu { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; overflow: auto; background: radial-gradient(ellipse at 50% 40%, rgba(28,23,20,0) 30%, rgba(28,23,20,.65) 100%); }
+#menu .cols { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; width: min(900px, 100%); }
+#menu .cols .panel { flex: 1 1 260px; max-width: 330px; display: flex; flex-direction: column; gap: 10px; }
+#menu .cols .panel .btn { width: 100%; }
+#menu .namebar { display: flex; gap: 10px; align-items: center; margin-bottom: 14px; }
+.foot { margin-top: 14px; display: flex; gap: 10px; }
+/* ---------- lobby ---------- */
+#lobby { display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20,16,13,.45); }
+#lobby .panel { width: min(560px, 100%); }
+.code { font: 800 46px/1 'Grenze', Georgia, serif; letter-spacing: .14em; color: var(--gold); text-shadow: 0 3px 0 var(--ink); }
+.seats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0; }
+.seat { border: 2px solid var(--ink); border-radius: 6px; padding: 12px; text-align: center; min-height: 112px; display: flex; flex-direction: column; gap: 8px; align-items: center; justify-content: center; }
+.seat.w { background: linear-gradient(180deg, #E9DCC0, #C9B691); color: var(--ink); }
+.seat.b { background: linear-gradient(180deg, #3A302B, #221B17); }
+.seat .who { font: 700 22px 'Grenze', Georgia, serif; }
+.specs { font-size: 13px; color: #CDBB9A; min-height: 18px; }
+/* ---------- board HUD ---------- */
+.pcard { position: fixed; left: 12px; display: flex; align-items: center; gap: 10px; padding: 8px 12px; min-width: 230px; }
+.pcard.top { top: 12px; } .pcard.bot { bottom: 12px; }
+.pcard .dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink); }
+.pcard .nm { font: 700 20px 'Grenze', Georgia, serif; }
+.pcard .clk { margin-left: auto; font: 700 22px ui-monospace, Menlo, Consolas, monospace; padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,.4); }
+.pcard .clk.run { background: var(--gold); color: var(--ink); }
+.pcard .clk.low { background: var(--crimson); color: var(--parch); }
+.pcard .tk { font-size: 18px; letter-spacing: -2px; min-height: 18px; color: #E7D6B5; }
+.pcard.turn { box-shadow: 0 0 0 2px var(--gold) inset, 0 10px 30px rgba(0,0,0,.5); }
+#status { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); font: 700 22px 'Grenze', Georgia, serif; padding: 8px 18px; text-shadow: 0 2px 0 var(--ink); white-space: nowrap; }
+#status.check { color: #FF8B7E; }
+#side { position: fixed; right: 12px; top: 12px; bottom: 12px; width: 230px; display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+#moves { flex: 1; overflow: auto; font: 14px ui-monospace, Menlo, Consolas, monospace; display: grid; grid-template-columns: 30px 1fr 1fr; align-content: start; gap: 2px 6px; }
+#moves .n { color: #9E8E72; } #moves .x { color: #FF9B8E; }
+#side .acts { display: flex; gap: 6px; flex-wrap: wrap; } #side .acts .btn { flex: 1; }
+#chatlog { max-height: 120px; overflow: auto; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+#chatlog b { color: var(--gold); }
+#chatin { width: 100%; padding: 6px 8px; font-size: 13px; }
+#offer { padding: 8px; border: 1px solid var(--gold); border-radius: 4px; font-size: 14px; display: flex; flex-direction: column; gap: 6px; }
+#promo { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; gap: 10px; }
+#promo .btn { font-size: 34px; width: 74px; height: 74px; }
+#over { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; width: min(420px, 92vw); }
+#over .big { font: 800 44px/1 'Grenze', Georgia, serif; color: var(--gold); text-shadow: 0 3px 0 var(--ink); margin: 4px 0 8px; }
+#over .acts { display: flex; gap: 10px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+/* ---------- duel HUD ---------- */
+#duel .cross { position: fixed; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%); pointer-events: none; }
+#duel .cross::before, #duel .cross::after { content: ''; position: absolute; background: var(--parch); box-shadow: 0 0 0 1px rgba(28,23,20,.8); }
+#duel .cross::before { left: 12px; top: 0; width: 2px; height: 26px; clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%, 0 65%, 100% 65%, 100% 100%, 0 100%); }
+#duel .cross::after { top: 12px; left: 0; height: 2px; width: 26px; clip-path: polygon(0 0, 35% 0, 35% 100%, 0 100%, 0 0, 65% 0, 100% 0, 100% 100%, 65% 100%); }
+#hitmark { position: fixed; left: 50%; top: 50%; width: 34px; height: 34px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; pointer-events: none; }
+#hitmark::before, #hitmark::after { content: ''; position: absolute; background: #fff; }
+#hitmark::before { left: 16px; top: 0; width: 2px; height: 34px; clip-path: polygon(0 0, 100% 0, 100% 30%, 0 30%, 0 70%, 100% 70%, 100% 100%, 0 100%); }
+#hitmark::after { top: 16px; left: 0; height: 2px; width: 34px; clip-path: polygon(0 0, 30% 0, 30% 100%, 0 100%, 0 0, 70% 0, 100% 0, 100% 100%, 70% 100%); }
+#hitmark.head::before, #hitmark.head::after { background: var(--ember); }
+.hpbar { position: fixed; left: 50%; transform: translateX(-50%); width: min(420px, 70vw); }
+.hpbar.me { bottom: 22px; } .hpbar.foe { top: 16px; }
+.hpbar .lab { display: flex; justify-content: space-between; font: 700 18px 'Grenze', Georgia, serif; text-shadow: 0 2px 0 var(--ink); margin-bottom: 4px; }
+.hpbar .bar { height: 16px; border: 2px solid var(--ink); background: rgba(0,0,0,.55); border-radius: 3px; overflow: hidden; position: relative; }
+.hpbar .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(180deg, #F2CF7E, var(--gold) 50%, var(--goldD)); transition: width .15s; }
+.hpbar.foe .bar i { background: linear-gradient(180deg, #E4685E, var(--crimson) 50%, var(--crimsonD)); }
+.hpbar .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(255,240,210,.7); transition: width .6s .25s; }
+#dtimer { position: fixed; top: 74px; left: 50%; transform: translateX(-50%); font: 700 22px ui-monospace, Menlo, monospace; text-shadow: 0 2px 0 var(--ink); }
+#weap { position: fixed; right: 18px; bottom: 18px; text-align: right; font: 700 20px 'Grenze', Georgia, serif; text-shadow: 0 2px 0 var(--ink); }
+#weap .muted { font-family: system-ui, sans-serif; font-weight: 400; }
+#count { position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%); font: 800 96px/1 'Grenze', Georgia, serif; color: var(--gold); -webkit-text-stroke: 2px var(--ink); text-shadow: 0 5px 0 var(--ink); pointer-events: none; text-align: center; white-space: nowrap; }
+#count small { display: block; font-size: 28px; color: var(--parch); -webkit-text-stroke: 1px var(--ink); margin-top: 8px; }
+#lockhint { position: fixed; left: 50%; top: 62%; transform: translateX(-50%); padding: 10px 18px; font: 700 20px 'Grenze', Georgia, serif; }
+#hurt { position: fixed; inset: 0; pointer-events: none; opacity: 0; background: radial-gradient(ellipse at center, rgba(169,49,43,0) 45%, rgba(169,49,43,.75) 100%); }
+#scope { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(circle at center, rgba(0,0,0,0) 0 31vmin, rgba(28,23,20,.97) 31.3vmin); }
+#scope::before { content: ''; position: absolute; left: 50%; top: 50%; width: 62vmin; height: 62vmin; transform: translate(-50%, -50%); border-radius: 50%;
+  background: linear-gradient(var(--ink), var(--ink)) center/1px 100% no-repeat, linear-gradient(var(--ink), var(--ink)) center/100% 1px no-repeat; box-shadow: 0 0 0 3px var(--ink) inset; }
+.dmg { position: fixed; font: 800 24px 'Grenze', Georgia, serif; color: var(--parch); -webkit-text-stroke: 1px var(--ink); text-shadow: 0 2px 0 var(--ink); pointer-events: none; transition: transform .7s ease-out, opacity .7s; }
+.dmg.head { color: var(--ember); font-size: 30px; }
+#banner { position: fixed; left: 50%; top: 30%; transform: translate(-50%, -50%) scale(1); font: 800 72px/1 'Grenze', Georgia, serif; color: var(--gold); -webkit-text-stroke: 2px var(--ink); text-shadow: 0 5px 0 var(--ink); pointer-events: none; white-space: nowrap; text-align: center; }
+#banner small { display: block; font-size: 26px; color: var(--parch); margin-top: 8px; -webkit-text-stroke: 1px var(--ink); }
+#banner.pop { animation: pop .5s cubic-bezier(.2,1.6,.4,1); }
+@keyframes pop { from { transform: translate(-50%, -50%) scale(.3) rotate(-6deg); opacity: 0; } to { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+#toast { position: fixed; left: 50%; bottom: 80px; transform: translateX(-50%); padding: 10px 16px; font-size: 15px; transition: opacity .3s; max-width: 90vw; text-align: center; }
+#help { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(620px, 94vw); max-height: 90vh; overflow: auto; }
+#help table { width: 100%; border-collapse: collapse; font-size: 14px; } #help td { padding: 4px 6px; border-bottom: 1px solid rgba(215,164,65,.2); }
+kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: var(--ink); border-radius: 3px; padding: 1px 5px; box-shadow: 0 2px 0 var(--goldD); }
+/* touch controls for duels */
+#touch { position: fixed; inset: 0; pointer-events: none; }
+#touch .pad { position: fixed; left: 24px; bottom: 90px; width: 130px; height: 130px; border-radius: 50%; border: 2px dashed rgba(241,228,202,.4); pointer-events: none; }
+#touch .fire { position: fixed; right: 26px; bottom: 100px; width: 92px; height: 92px; border-radius: 50%; pointer-events: auto; font-size: 18px; }
+#touch .jump { position: fixed; right: 132px; bottom: 70px; width: 66px; height: 66px; border-radius: 50%; pointer-events: auto; font-size: 15px; }
+@media (max-width: 760px) {
+  #side { top: auto; height: 170px; width: auto; left: 12px; bottom: 76px; }
+  .pcard { min-width: 0; right: 12px; } .pcard.bot { bottom: 12px; }
+  .pcard.top { top: 56px; } #status { font-size: 18px; }
+}
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="fxl" class="layer"></div>
+
+<div id="menu" class="layer">
+  <h1 class="title" id="logo"></h1>
+  <div class="sub">every capture is a gunfight</div>
+  <div class="namebar panel" style="padding:10px 14px">
+    <span class="serif" style="font-size:19px">Your name</span>
+    <input id="name" maxlength="16" placeholder="Player" style="width:170px">
+  </div>
+  <div class="cols">
+    <div class="panel">
+      <h2>Play friends</h2>
+      <button class="btn gold" id="bCreate">Make a table</button>
+      <div style="display:flex; gap:8px"><input id="joinCode" maxlength="5" placeholder="CODE" style="width:100%; text-transform:uppercase; letter-spacing:.2em; font-weight:700"><button class="btn small royal" id="bJoin">Join</button></div>
+      <div class="muted">Make a table, then send the link or the 5-letter code. Extra friends can watch.</div>
+    </div>
+    <div class="panel">
+      <h2>Practice</h2>
+      <label class="row">Bot <select id="botLv"><option value="1">Recruit</option><option value="2" selected>Veteran</option><option value="3">Warlord</option></select></label>
+      <label class="row">Play as <select id="botCol"><option value="w">White</option><option value="b">Black</option><option value="r">Random</option></select></label>
+      <button class="btn" id="bSolo">Fight the bot</button>
+    </div>
+  </div>
+  <div class="foot">
+    <button class="btn small steel" id="bHelp">How to play</button>
+    <button class="btn small steel" id="bSet">Settings</button>
+  </div>
+</div>
+
+<div id="lobby" class="layer hide">
+  <div class="panel">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap">
+      <div><div class="muted">Table code</div><div class="code" id="lCode">-----</div></div>
+      <button class="btn small royal" id="bCopy">Copy invite link</button>
+    </div>
+    <div class="seats">
+      <div class="seat w"><div class="muted" style="color:#5b4a35">White</div><div class="who" id="sW">empty</div><button class="btn small steel" id="bSitW">Sit here</button></div>
+      <div class="seat b"><div class="muted">Black</div><div class="who" id="sB">empty</div><button class="btn small steel" id="bSitB">Sit here</button></div>
+    </div>
+    <div class="specs" id="lSpecs"></div>
+    <div id="lSet">
+      <label class="row">Clock <select id="sClock"><option value="0">No clock</option><option value="1">1 min</option><option value="3">3 min</option><option value="5">5 min</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option></select></label>
+      <label class="row">Added per move <select id="sInc"><option value="0">0 s</option><option value="2">2 s</option><option value="5">5 s</option><option value="10">10 s</option></select></label>
+      <label class="row">Captures are gunfights <select id="sDuel"><option value="1">Yes</option><option value="0">No (plain chess)</option></select></label>
+    </div>
+    <div class="muted" id="lNote"></div>
+    <div style="display:flex; gap:10px; margin-top:12px; flex-wrap:wrap">
+      <button class="btn gold" id="bStart" style="flex:1">Start the game</button>
+      <button class="btn small steel" id="bSwap">Swap colours</button>
+      <button class="btn small steel" id="bLeave">Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="hud" class="layer hide">
+  <div class="pcard top panel" id="pTop"><div class="dot"></div><div><div class="nm"></div><div class="tk"></div></div><div class="clk"></div></div>
+  <div class="pcard bot panel" id="pBot"><div class="dot"></div><div><div class="nm"></div><div class="tk"></div></div><div class="clk"></div></div>
+  <div id="status" class="panel"></div>
+  <div id="side" class="panel">
+    <div class="serif" style="font-size:19px; color:var(--gold)">Moves</div>
+    <div id="moves"></div>
+    <div id="offer" class="hide"><span id="offerT"></span><div style="display:flex; gap:6px"><button class="btn small gold" id="bAcc">Accept</button><button class="btn small steel" id="bDec">Decline</button></div></div>
+    <div class="acts" id="acts"><button class="btn small steel" id="bDraw">Offer draw</button><button class="btn small" id="bResign">Resign</button></div>
+    <div id="chatlog"></div>
+    <input id="chatin" maxlength="140" placeholder="Say something (Enter)">
+  </div>
+  <div id="promo" class="hide"></div>
+  <div id="over" class="panel hide"><div class="muted" id="oSub">Game over</div><div class="big" id="oBig"></div><div id="oWhy"></div><div class="muted" id="oRe"></div>
+    <div class="acts"><button class="btn gold" id="bRe">Rematch</button><button class="btn small steel" id="bBack">Leave table</button></div></div>
+</div>
+
+<div id="duel" class="layer hide">
+  <div class="cross"></div><div id="hitmark"></div>
+  <div class="hpbar foe"><div class="lab"><span id="foeN"></span><span id="foeH"></span></div><div class="bar"><b></b><i></i></div></div>
+  <div class="hpbar me"><div class="lab"><span id="meN"></span><span id="meH"></span></div><div class="bar"><b></b><i></i></div></div>
+  <div id="dtimer"></div>
+  <div id="weap"></div>
+  <div id="lockhint" class="panel hide">Click to aim</div>
+  <div id="scope" class="hide"></div>
+  <div id="touch" class="hide"><div class="pad"></div><button class="btn fire" id="tFire">FIRE</button><button class="btn steel jump" id="tJump">JUMP</button></div>
+</div>
+<div id="hurt"></div>
+<div id="count" class="hide"></div>
+<div id="banner" class="hide"></div>
+<div id="toast" class="panel hide"></div>
+
+<div id="help" class="panel hide">
+  <h2>How to play Gunmate</h2>
+  <p>It's real chess: every normal rule counts, including castling, en passant, promotion, check, checkmate, stalemate and draws by repetition, the fifty-move rule or too little material.</p>
+  <p><b>The twist:</b> when you try to capture, the two pieces fight it out in first person on the board itself, with every other piece standing as cover. Topple the defender and the capture happens. Lose, and your attacker falls instead and your turn is spent. A king never falls, and a piece whose fall would leave its own king in check holds its ground. If the 45 seconds run out, whoever has more of their health left wins, and the defender wins a tie.</p>
+  <p><b>Last stand:</b> checkmate is a forced fight too. The trapped king duels the piece giving check. Topple the king and it's checkmate. If the king wins, the checking piece falls and the game goes on.</p>
+  <table>
+    <tr><td>Pawn</td><td>Picket carbine</td><td>100 health</td></tr>
+    <tr><td>Knight</td><td>Lancer scattergun, double jump</td><td>135 health</td></tr>
+    <tr><td>Bishop</td><td>Vesper long rifle, right-click to scope</td><td>125 health</td></tr>
+    <tr><td>Rook</td><td>Bastion repeater, slow and tough</td><td>190 health</td></tr>
+    <tr><td>Queen</td><td>Regent rifle, quick on her feet</td><td>200 health</td></tr>
+    <tr><td>King</td><td>Crown revolver</td><td>210 health</td></tr>
+  </table>
+  <p><b>Board:</b> click a piece, then a highlighted square. Drag or right-drag to turn the board, scroll to zoom.<br>
+  <b>Duel:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move, mouse aims, hold left click to fire, <kbd>Space</kbd> jumps, right click scopes. Head shots hit harder.</p>
+  <div style="text-align:right"><button class="btn small gold" id="bHelpX">Got it</button></div>
+</div>
+<div id="settings" class="panel hide" style="position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:min(380px,92vw)">
+  <h2>Settings</h2>
+  <label class="row">Mouse speed <input type="range" id="sens" min="0.2" max="3" step="0.05" style="width:160px"></label>
+  <label class="row">Volume <input type="range" id="vol" min="0" max="1" step="0.05" style="width:160px"></label>
+  <label class="row">Graphics <select id="gfx"><option value="auto">Auto</option><option value="high">High</option><option value="low">Low</option></select></label>
+  <div style="text-align:right"><button class="btn small gold" id="bSetX">Done</button></div>
+</div>
+<div id="lic" class="hide">three.js (MIT, three.js authors). Grenze font by Omnibus-Type (SIL Open Font License 1.1). Everything else is original to Gunmate.</div>
+<script>/*THREE*/</script>
+<script>/*RULES*/</script>
+<script>/*ROOM*/</script>
+<script>/*GAME*/</script>
+</body>
+</html>
