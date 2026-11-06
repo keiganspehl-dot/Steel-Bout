@@ -16,7 +16,7 @@ Chess where every capture is a first-person gunfight. Full standard chess rules;
 
 ## Duel rules
 Capture = duel on the real board, other pieces are cover. 3 s countdown, then 45 s. Attacker topples the
-defender: capture happens. Defender wins: the attacker falls and the turn passes, except a king (never falls) or a
+defender: capture happens. Defender wins: the attacker falls and the turn passes, except that a king losing ANY duel loses the game (kings are the weakest fighters: 60 health, 22 damage) and a
 piece whose fall would expose its own king (it holds its ground). Time out: higher health fraction wins, tie goes to
 the defender. Chess clocks pause during duels. Checkmate is a forced fight too (last stand): the mated king duels the checking piece; king loses = checkmate, king wins = the checker falls (unless that would expose its own king, then mate stands) and play continues. Captures as plain chess can be chosen in the table settings.
 

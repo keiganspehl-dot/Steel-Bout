@@ -15,7 +15,7 @@
     b: { name: 'Vesper long rifle', hp: 125, dmg: 48, interval: 0.95, pellets: 1, spread: 0.002, range: 90, speed: 7.2, h: 3.1, r: 0.80, scope: true },
     r: { name: 'Bastion repeater', hp: 190, dmg: 9, interval: 0.085, pellets: 1, spread: 0.028, range: 50, speed: 5.6, h: 2.8, r: 1.00 },
     q: { name: 'Regent rifle', hp: 200, dmg: 15, interval: 0.11, pellets: 1, spread: 0.013, range: 70, speed: 8.4, h: 3.4, r: 0.90 },
-    k: { name: 'Crown revolver', hp: 210, dmg: 36, interval: 0.48, pellets: 1, spread: 0.006, range: 60, speed: 6.6, h: 3.6, r: 0.90 }
+    k: { name: 'Crown revolver', hp: 60, dmg: 22, interval: 0.55, pellets: 1, spread: 0.006, range: 60, speed: 6.6, h: 3.6, r: 0.90 }
   };
   const HEAD = 0.8;          // top 20% of a piece is the head: x1.6 damage
   const DUEL_COUNT = 3000;   // countdown before shooting
@@ -162,7 +162,7 @@
     }
     standOver(m, won) {
       const att = Rules.colorOf(m.piece);
-      if (won) { this.end(att, 'checkmate'); return; }
+      if (won) { this.taken[att].push('k'); this.end(att, 'checkmate'); return; }
       const ns = Rules.removePiece(this.st, m.from);
       if (!ns) { this.end(att, 'checkmate (the checking piece could not fall)'); return; }
       this.st = ns;
@@ -175,6 +175,15 @@
     }
     apply(m, san, won) {
       if (m.lastStand) return this.standOver(m, won);
+      // lose your king, lose the game
+      if (!won && Rules.typeOf(m.piece) === 'k') {
+        const c = Rules.colorOf(m.piece);
+        this.sans.push(san.replace(/[+#]$/, '') + '✗');
+        this.taken[Rules.other(c)].push('k');
+        this.last = { from: m.from, to: m.to, failed: true, fell: true };
+        this.end(Rules.other(c), (c === 'w' ? 'White' : 'Black') + "'s king fell in a gunfight");
+        return;
+      }
       if (won) {
         if (m.cap) this.taken[Rules.colorOf(m.piece)].push(Rules.typeOf(m.cap));
         this.st = Rules.makeMove(this.st, m);

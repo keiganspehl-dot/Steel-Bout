@@ -796,8 +796,8 @@ function enterDuel(d) {
   $('weap').innerHTML = ''; $('weap').append(duel.arm.name); const sm = document.createElement('div'); sm.className = 'muted'; sm.textContent = duel.arm.scope ? 'right click to scope' : duel.arm.doubleJump ? 'double jump' : ''; $('weap').append(sm);
   drawHp(true);
   const attacker = PNAME[d.type[ac]], defender = PNAME[d.type[dc]];
-  if (d.lastStand) banner('Last stand!', mine ? (dc === meC ? 'Checkmated! Win this fight to survive' : 'Topple the king to finish the game!') : 'The king fights for the game', 2600);
-  else banner(attacker + ' vs ' + defender, ac === meC && mine ? 'Topple them to take the square!' : mine ? 'Hold your square!' : seatName(ac) + ' attacks', 2400);
+  if (d.lastStand) banner('Last stand!', mine ? (dc === meC ? 'Checkmated! Win with your weak king to survive' : 'Topple the king to finish the game!') : 'The king fights for the game', 2600);
+  else banner(attacker + ' vs ' + defender, d.type[meC] === 'k' && mine ? 'Your king is fighting. Lose and you lose the game!' : ac === meC && mine ? 'Topple them to take the square!' : mine ? 'Hold your square!' : seatName(ac) + ' attacks', 2400);
   sfx.drum();
   show('count', true);
   drawStatus();
@@ -868,7 +868,7 @@ function onDuelEnd(m) {
 // attacker that may not fall (king, or pinned so its fall would expose the king)
 function wouldHold() {
   if (!duel || !pos) return false;
-  const d = duel.d; if (d.type[d.att] === 'k') return true;
+  const d = duel.d; if (d.type[d.att] === 'k') return false;
   const b = pos.b.slice(); b[d.from] = '';
   return R.attacked(b, R.kingSq(b, d.att), R.other(d.att));
 }

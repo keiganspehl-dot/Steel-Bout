@@ -23,5 +23,17 @@ async function game(kingWins) {
   const st = R.fromFEN('4k3/8/8/8/8/8/4R3/4K3 w - - 0 1');
   ok('checkers found', R.checkers(R.fromFEN('3rk3/8/8/8/8/8/8/3K3 w - - 0 1').b, R.sqIndex('d1'), 'b').join() === String(R.sqIndex('d8')));
   ok('pinned piece cannot be removed', R.removePiece(R.fromFEN('4r2k/8/8/8/8/8/4R3/4K3 b - - 0 1'), R.sqIndex('e2')) === null);
-  void st; process.exit();
+  void st;
+})();
+// king attacks and loses its duel -> that side loses the game
+(async () => {
+  await sleep(6500);
+  const r = new Room('K'); r.add('a', 'Ann', () => {}); r.add('b', 'Bob', () => {});
+  r.handle('a', { t: 'settings', s: { clock: 0, inc: 0, duels: true } }); r.handle('a', { t: 'start' });
+  r.st = R.fromFEN('4k3/8/8/8/8/8/3p4/4K3 w - - 0 1'); r.st.keys = [];
+  r.handle('a', { t: 'move', from: R.sqIndex('e1'), to: R.sqIndex('d2') });
+  ok('king capture starts a duel with a 60-health king', r.phase === 'duel' && r.duel.hp.w === 60);
+  r.finishDuel('b', 'test'); await sleep(2800);
+  ok('king lost the fight -> black wins: ' + (r.result && r.result.reason), r.phase === 'over' && r.result.result === 'b');
+  process.exit();
 })();

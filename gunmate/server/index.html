@@ -231,7 +231,7 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
 <div id="help" class="panel hide">
   <h2>How to play Gunmate</h2>
   <p>It's real chess: every normal rule counts, including castling, en passant, promotion, check, checkmate, stalemate and draws by repetition, the fifty-move rule or too little material.</p>
-  <p><b>The twist:</b> when you try to capture, the two pieces fight it out in first person on the board itself, with every other piece standing as cover. Topple the defender and the capture happens. Lose, and your attacker falls instead and your turn is spent. A king never falls, and a piece whose fall would leave its own king in check holds its ground. If the 45 seconds run out, whoever has more of their health left wins, and the defender wins a tie.</p>
+  <p><b>The twist:</b> when you try to capture, the two pieces fight it out in first person on the board itself, with every other piece standing as cover. Topple the defender and the capture happens. Lose, and your attacker falls instead and your turn is spent. <b>If your king loses a fight, you lose the game</b>, and the king is the weakest fighter on the board, so attack with it carefully. A piece whose fall would leave its own king in check holds its ground. If the 45 seconds run out, whoever has more of their health left wins, and the defender wins a tie.</p>
   <p><b>Last stand:</b> checkmate is a forced fight too. The trapped king duels the piece giving check. Topple the king and it's checkmate. If the king wins, the checking piece falls and the game goes on.</p>
   <table>
     <tr><td>Pawn</td><td>Picket carbine</td><td>100 health</td></tr>
@@ -239,7 +239,7 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
     <tr><td>Bishop</td><td>Vesper long rifle, right-click to scope</td><td>125 health</td></tr>
     <tr><td>Rook</td><td>Bastion repeater, slow and tough</td><td>190 health</td></tr>
     <tr><td>Queen</td><td>Regent rifle, quick on her feet</td><td>200 health</td></tr>
-    <tr><td>King</td><td>Crown revolver</td><td>210 health</td></tr>
+    <tr><td>King</td><td>Crown revolver, weakest of all</td><td>60 health</td></tr>
   </table>
   <p><b>Board:</b> click a piece, then a highlighted square. Drag or right-drag to turn the board, scroll to zoom.<br>
   <b>Duel:</b> <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> move, mouse aims, hold left click to fire, <kbd>Space</kbd> jumps, right click scopes. Head shots hit harder.</p>
@@ -597,7 +597,7 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
     b: { name: 'Vesper long rifle', hp: 125, dmg: 48, interval: 0.95, pellets: 1, spread: 0.002, range: 90, speed: 7.2, h: 3.1, r: 0.80, scope: true },
     r: { name: 'Bastion repeater', hp: 190, dmg: 9, interval: 0.085, pellets: 1, spread: 0.028, range: 50, speed: 5.6, h: 2.8, r: 1.00 },
     q: { name: 'Regent rifle', hp: 200, dmg: 15, interval: 0.11, pellets: 1, spread: 0.013, range: 70, speed: 8.4, h: 3.4, r: 0.90 },
-    k: { name: 'Crown revolver', hp: 210, dmg: 36, interval: 0.48, pellets: 1, spread: 0.006, range: 60, speed: 6.6, h: 3.6, r: 0.90 }
+    k: { name: 'Crown revolver', hp: 60, dmg: 22, interval: 0.55, pellets: 1, spread: 0.006, range: 60, speed: 6.6, h: 3.6, r: 0.90 }
   };
   const HEAD = 0.8;          // top 20% of a piece is the head: x1.6 damage
   const DUEL_COUNT = 3000;   // countdown before shooting
@@ -744,7 +744,7 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
     }
     standOver(m, won) {
       const att = Rules.colorOf(m.piece);
-      if (won) { this.end(att, 'checkmate'); return; }
+      if (won) { this.taken[att].push('k'); this.end(att, 'checkmate'); return; }
       const ns = Rules.removePiece(this.st, m.from);
       if (!ns) { this.end(att, 'checkmate (the checking piece could not fall)'); return; }
       this.st = ns;
@@ -757,6 +757,15 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
     }
     apply(m, san, won) {
       if (m.lastStand) return this.standOver(m, won);
+      // lose your king, lose the game
+      if (!won && Rules.typeOf(m.piece) === 'k') {
+        const c = Rules.colorOf(m.piece);
+        this.sans.push(san.replace(/[+#]$/, '') + '✗');
+        this.taken[Rules.other(c)].push('k');
+        this.last = { from: m.from, to: m.to, failed: true, fell: true };
+        this.end(Rules.other(c), (c === 'w' ? 'White' : 'Black') + "'s king fell in a gunfight");
+        return;
+      }
       if (won) {
         if (m.cap) this.taken[Rules.colorOf(m.piece)].push(Rules.typeOf(m.cap));
         this.st = Rules.makeMove(this.st, m);
@@ -1707,8 +1716,8 @@ function enterDuel(d) {
   $('weap').innerHTML = ''; $('weap').append(duel.arm.name); const sm = document.createElement('div'); sm.className = 'muted'; sm.textContent = duel.arm.scope ? 'right click to scope' : duel.arm.doubleJump ? 'double jump' : ''; $('weap').append(sm);
   drawHp(true);
   const attacker = PNAME[d.type[ac]], defender = PNAME[d.type[dc]];
-  if (d.lastStand) banner('Last stand!', mine ? (dc === meC ? 'Checkmated! Win this fight to survive' : 'Topple the king to finish the game!') : 'The king fights for the game', 2600);
-  else banner(attacker + ' vs ' + defender, ac === meC && mine ? 'Topple them to take the square!' : mine ? 'Hold your square!' : seatName(ac) + ' attacks', 2400);
+  if (d.lastStand) banner('Last stand!', mine ? (dc === meC ? 'Checkmated! Win with your weak king to survive' : 'Topple the king to finish the game!') : 'The king fights for the game', 2600);
+  else banner(attacker + ' vs ' + defender, d.type[meC] === 'k' && mine ? 'Your king is fighting. Lose and you lose the game!' : ac === meC && mine ? 'Topple them to take the square!' : mine ? 'Hold your square!' : seatName(ac) + ' attacks', 2400);
   sfx.drum();
   show('count', true);
   drawStatus();
@@ -1779,7 +1788,7 @@ function onDuelEnd(m) {
 // attacker that may not fall (king, or pinned so its fall would expose the king)
 function wouldHold() {
   if (!duel || !pos) return false;
-  const d = duel.d; if (d.type[d.att] === 'k') return true;
+  const d = duel.d; if (d.type[d.att] === 'k') return false;
   const b = pos.b.slice(); b[d.from] = '';
   return R.attacked(b, R.kingSq(b, d.att), R.other(d.att));
 }
