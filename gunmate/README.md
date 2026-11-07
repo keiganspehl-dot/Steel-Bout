@@ -30,3 +30,11 @@ The site is then https://gunmate.fly.dev. One shared-cpu-1x 256 MB machine; it s
 wakes on the next visit (the first load after a sleep takes a couple of seconds).
 From a cloud container: start dockerd and use `fly deploy --local-only --ha=false` with
 `SSL_CERT_FILE=/root/.ccr/ca-bundle.crt` and `FLY_API_TOKEN` set.
+
+## Network fairness
+Each player moves and aims locally (no input delay), and a hit is claimed by the shooter against what they see.
+The server keeps a short position history per player (stamped with arrival time minus half the sender's round
+trip) and judges each shot against where the target was on the *shooter's* screen (lag compensation), so a
+high-ping player and a low-ping player get the same fight. Opponents are drawn with dead reckoning (30 Hz packets
+carrying velocity). Countdowns start at the same server instant for both players (client subtracts half its RTT).
+Test: `node tools/lag-test.js`.

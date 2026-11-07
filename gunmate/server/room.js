@@ -50,7 +50,7 @@
         }
       }
       if (this.players.size >= 10) { send({ t: 'error', text: 'That room is full.' }); return false; }
-      this.players.set(id, { id, name: clean(name), seat: null, send, connected: true, token });
+      this.players.set(id, { id, name: clean(name), seat: null, send, connected: true, token, rtt: 60 });
       if (this.host === null || !this.players.has(this.host)) this.host = id;
       // first two people take the seats automatically
       const p = this.players.get(id);
@@ -210,8 +210,9 @@
         type: { [ac]: at, [dc]: dt }, sq: { [ac]: m.from, [dc]: m.capSq },
         hp: { [ac]: ARMS[at].hp, [dc]: ARMS[dt].hp }, max: { [ac]: ARMS[at].hp, [dc]: ARMS[dt].hp },
         pos: { [ac]: Object.assign({ y: 0 }, sqPos(m.from)), [dc]: Object.assign({ y: 0 }, sqPos(m.capSq)) },
-        lastShot: { w: 0, b: 0 }, pk: { w: [0, 0], b: [0, 0] }, over: false
+        lastShot: { w: 0, b: 0 }, pk: { w: [0, 0], b: [0, 0] }, over: false, hist: { w: [], b: [] }
       };
+      for (const c of [ac, dc]) this.duel.hist[c].push(Object.assign({ t: now - 2000, vx: 0, vy: 0, vz: 0 }, this.duel.pos[c]));
       this.phase = 'duel';
       this.timers.duel = this.later(() => this.duelTimeout(id), DUEL_COUNT + DUEL_LEN + 50);
       this.sendRoom(); this.sendState();
@@ -219,7 +220,7 @@
     duelInfo() {
       const d = this.duel;
       return { id: d.id, from: d.m.from, to: d.m.to, capSq: d.m.capSq, att: d.att, type: d.type, sq: d.sq, hp: d.hp, max: d.max,
-        startIn: d.start - this.now(), endIn: d.endAt - this.now(), over: d.over, lastStand: !!d.m.lastStand };
+        now: this.now(), start: d.start, endAt: d.endAt, startIn: d.start - this.now(), endIn: d.endAt - this.now(), over: d.over, lastStand: !!d.m.lastStand };
     }
     duelTimeout(id) {
       const d = this.duel; if (!d || d.id !== id || d.over) return;
@@ -238,11 +239,28 @@
       const d = this.duel; if (!d || d.over || !p.seat) return;
       const c = p.seat, now = this.now(), pk = d.pk[c];
       if (now - pk[0] > 1000) { pk[0] = now; pk[1] = 0; }
-      if (++pk[1] > 45) return; // rate limit
+      if (++pk[1] > 75) return; // rate limit
       const lim = 4 * S + 3, x = +msg.x, y = +msg.y, z = +msg.z;
       if (![x, y, z].every(Number.isFinite) || Math.abs(x) > lim || Math.abs(z) > lim || y < -1 || y > 12) return;
       d.pos[c] = { x, y, z };
-      this.others(p.id, { t: 'p', c, x, y, z, yaw: +msg.yaw || 0, pitch: +msg.pitch || 0, mv: msg.mv ? 1 : 0 });
+      const cv = v => (Number.isFinite(+v) ? Math.max(-20, Math.min(20, +v)) : 0), vx = cv(msg.vx), vy = cv(msg.vy), vz = cv(msg.vz);
+      // history stamped with when the move really happened (arrival minus half the sender's round trip)
+      const h = d.hist[c], last = h[h.length - 1], t = Math.max(last ? last.t : 0, now - p.rtt / 2);
+      h.push({ t, x, y, z, vx, vy, vz }); while (h.length > 60) h.shift();
+      this.others(p.id, { t: 'p', c, x, y, z, vx, vy, vz, yaw: +msg.yaw || 0, pitch: +msg.pitch || 0, mv: msg.mv ? 1 : 0 });
+    }
+    // where player c really was at time t (server clock); extrapolates a little past the newest sample
+    posAt(d, c, t) {
+      const h = d.hist[c]; if (!h.length) return d.pos[c];
+      if (t <= h[0].t) return h[0];
+      for (let i = h.length - 1; i >= 0; i--) {
+        if (h[i].t <= t) {
+          const a = h[i], b = h[i + 1];
+          if (b) { const k = (t - a.t) / Math.max(1, b.t - a.t); return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k }; }
+          const e = Math.min(0.2, (t - a.t) / 1000); return { x: a.x + a.vx * e, y: Math.max(0, a.y + a.vy * e), z: a.z + a.vz * e };
+        }
+      }
+      return h[0];
     }
     shot(p, msg) {
       const d = this.duel; if (!d || d.over || !p.seat) return;
@@ -255,7 +273,8 @@
       if (!Array.isArray(O) || !Array.isArray(D) || O.length !== 3 || D.length !== 3 || ![...O, ...D].every(Number.isFinite)) return;
       let hits = Math.max(0, Math.min(W.pellets, msg.hits | 0)), heads = Math.max(0, Math.min(hits, msg.heads | 0));
       // sanity: the shot leaves near the shooter and its line passes near the target's last known spot
-      const me = d.pos[c], tg = d.pos[o], T = ARMS[d.type[o]];
+      // lag compensation: judge the shot against where the target was on the shooter's screen
+      const me = d.pos[c], tg = this.posAt(d, o, now - p.rtt / 2), T = ARMS[d.type[o]];
       if (Math.hypot(O[0] - me.x, O[2] - me.z) > 3.5) hits = 0;
       if (hits) {
         const len = Math.hypot(D[0], D[1], D[2]) || 1, dx = D[0] / len, dy = D[1] / len, dz = D[2] / len;
@@ -328,6 +347,7 @@
           if (text) this.all({ t: 'chat', name: p.name, seat: p.seat, text });
           break;
         }
+        case 'rtt': p.rtt = Math.max(0, Math.min(500, +msg.ms || 0)); break;
         case 'name': p.name = clean(msg.name); this.sendRoom(); break;
       }
     }

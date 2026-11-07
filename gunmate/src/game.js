@@ -378,6 +378,8 @@ const myName = () => cleanName($('name').value) || 'Player';
 
 // ---------------- connection: online socket or local practice room ----------------
 let net = null;            // {send, close, solo}
+let netRtt = 0, pingFn = null;
+setInterval(() => { if (net && !net.solo && pingFn) pingFn(); }, 1500);
 let me = null, roomInfo = null, S = null, Sat = 0, myToken = null;
 try { myToken = sessionStorage.getItem('gunmate.token'); if (!myToken) { myToken = Math.random().toString(36).slice(2) + Date.now().toString(36); sessionStorage.setItem('gunmate.token', myToken); } } catch (e) { myToken = Math.random().toString(36).slice(2); }
 const SERVER = (new URLSearchParams(location.search)).get('server') || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws');
@@ -387,7 +389,7 @@ function connect(first) {
   let ws, closedByUs = false, retry = 0, pending = [first];
   const open = () => {
     try { ws = new WebSocket(SERVER); } catch (e) { toast('Could not reach the server.'); return; }
-    ws.onopen = () => { retry = 0; for (const m of pending) ws.send(JSON.stringify(m)); pending = []; };
+    ws.onopen = () => { retry = 0; for (const m of pending) ws.send(JSON.stringify(m)); pending = []; ping(); };
     ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch (er) { return; } onMsg(m); };
     ws.onclose = () => {
       if (closedByUs) return;
@@ -395,6 +397,8 @@ function connect(first) {
       else if (!roomInfo) toast('Could not reach the server. Try again in a moment.');
     };
   };
+  const ping = () => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'ping', at: performance.now() })); };
+  pingFn = ping;
   open();
   net = {
     solo: false,
@@ -414,6 +418,7 @@ function startSolo(level, colour) {
   if (colour === 'r') colour = Math.random() < 0.5 ? 'w' : 'b';
   if (colour === 'b') room.handle('me', { t: 'swap' });
   room.handle('me', { t: 'settings', s: { clock: 0, inc: 0, duels: true } });
+  netRtt = 0;
   net = { solo: true, send(m) { room.handle('me', m); }, close() { for (const k in room.timers) room.cancel(room.timers[k]); bot = null; } };
   room.handle('me', { t: 'start' });
 }
@@ -450,6 +455,7 @@ function onMsg(m) {
     }
     case 'state': onState(m); break;
     case 'error': toast(m.text); if (m.code === 'noroom') { try { history.replaceState(null, '', location.pathname); } catch (e) {} } break;
+    case 'pong': { const r = performance.now() - m.at; netRtt = netRtt ? netRtt * 0.6 + r * 0.4 : r; if (net && !net.solo) net.send({ t: 'rtt', ms: Math.round(netRtt) }); break; }
     case 'p': onRemotePos(m); break;
     case 'shot': onRemoteShot(m); break;
     case 'hp': onHp(m); break;
@@ -763,7 +769,7 @@ function enterDuel(d) {
   const my = mySeat(), ac = d.att, dc = R.other(ac);
   const mine = my === ac || my === dc;
   const meC = mine ? my : ac, foeC = R.other(meC);
-  duel = { id: d.id, d, mine, meC, foeC, startAt: performance.now() + d.startIn, endAt: performance.now() + d.endIn, hp: Object.assign({}, d.hp), max: d.max,
+  duel = { id: d.id, d, mine, meC, foeC, startAt: performance.now() + (d.start - d.now) - netRtt / 2, endAt: performance.now() + (d.endAt - d.now) - netRtt / 2, hp: Object.assign({}, d.hp), max: d.max,
     lastShot: 0, sendT: 0, shake: 0, ending: false, kick: 0, bob: 0, tracers: [], fov: 72 };
   // bodies
   duel.self = makeBody(meC, d.type[meC], d.sq[meC]);
@@ -828,15 +834,19 @@ function onRemotePos(m) {
   if (!duel) return;
   const tgt = m.c === duel.foeC ? duel.foeT : m.c === duel.meC && !duel.mine ? duel.selfT : null;
   if (!tgt) return;
-  tgt.x = m.x; tgt.y = m.y; tgt.z = m.z; tgt.yaw = m.yaw; tgt.mv = m.mv;
+  tgt.x = m.x; tgt.y = m.y; tgt.z = m.z; tgt.vx = m.vx || 0; tgt.vy = m.vy || 0; tgt.vz = m.vz || 0; tgt.yaw = m.yaw; tgt.mv = m.mv; tgt.at = performance.now();
+}
+function hitFeedback(dmg, head) {
+  if (!duel) return;
+  const hm = $('hitmark'); hm.classList.toggle('head', !!head); hm.style.transition = 'none'; hm.style.opacity = 1; void hm.offsetWidth; hm.style.transition = 'opacity .35s'; hm.style.opacity = 0;
+  sfx.hit(head);
+  popDamage(dmg, head, duel.foeObj ? duel.foeObj.g.position.clone().add(new T.Vector3(0, duel.foe.arm.h * 0.9, 0)) : null);
 }
 function onHp(m) {
   if (!duel) return;
   duel.hp = m.hp; drawHp();
   if (duel.mine && m.by === duel.meC) {
-    const hm = $('hitmark'); hm.classList.toggle('head', !!m.head); hm.style.transition = 'none'; hm.style.opacity = 1; void hm.offsetWidth; hm.style.transition = 'opacity .35s'; hm.style.opacity = 0;
-    sfx.hit(m.head);
-    popDamage(m.dmg, m.head, duel.foeObj ? duel.foeObj.g.position.clone().add(new T.Vector3(0, duel.foe.arm.h * 0.9, 0)) : null);
+    if (net && net.solo) hitFeedback(m.dmg, m.head); // online, the shooter already saw this the moment they fired
   } else if (duel.mine && m.by === duel.foeC) {
     const h = $('hurt'); h.style.transition = 'none'; h.style.opacity = 0.9; void h.offsetWidth; h.style.transition = 'opacity .6s'; h.style.opacity = 0;
     duel.shake = Math.min(1, duel.shake + m.dmg / 60); sfx.hurt();
@@ -947,6 +957,7 @@ function fireMine(now) {
     if (i < 4) addTracer(muz, o.clone().addScaledVector(d, r.t));
   }
   net.send({ t: 'shot', o: [o.x, o.y, o.z], d: [base.x, base.y, base.z], hits, heads });
+  if (hits && !(net && net.solo)) hitFeedback(Math.round(hits * A.dmg + heads * A.dmg * 0.6), heads > 0);
   sfx.gun(duel.d.type[duel.meC]);
   duel.kick = Math.min(1.5, duel.kick + (A.pellets > 1 ? 1 : A.dmg / 40));
   duel.pitch = Math.min(1.35, duel.pitch + (A.pellets > 1 ? 0.03 : A.dmg / 2000));
@@ -1043,7 +1054,7 @@ function duelFrame(dt, now) {
     if (dd.flashT > 0) { dd.flashT -= dt; dd.flash.intensity = 6; dd.flashMesh.material.opacity = 1; } else if (dd.flash) { dd.flash.intensity = 0; dd.flashMesh.material.opacity = 0; }
     if (live && firing && (locked || isTouch)) fireMine(now);
     dd.sendT -= dt;
-    if (dd.sendT <= 0) { dd.sendT = 0.05; net.send({ t: 'p', x: me.x, y: me.y, z: me.z, yaw: dd.yaw, pitch: dd.pitch, mv: moving > 0.5 }); }
+    if (dd.sendT <= 0) { dd.sendT = 0.033; net.send({ t: 'p', x: +me.x.toFixed(3), y: +me.y.toFixed(3), z: +me.z.toFixed(3), vx: +me.vx.toFixed(2), vy: +me.vy.toFixed(2), vz: +me.vz.toFixed(2), yaw: +dd.yaw.toFixed(3), pitch: +dd.pitch.toFixed(3), mv: moving > 0.5 }); }
     if (dd.selfObj && !dd.selfObj.toppling) { dd.selfObj.g.position.set(me.x, me.y, me.z); dd.selfObj.g.rotation.y = me.yaw; }
   } else {
     // spectators: follow both from above
@@ -1056,8 +1067,11 @@ function duelFrame(dt, now) {
   // the other duelist: from the network, or the local bot
   if (bot && bot.duel) botDuel(dt, now);
   else {
-    const f = dd.foeT, b = dd.foe, k = Math.min(1, dt * 14);
-    b.x += (f.x - b.x) * k; b.y += (f.y - b.y) * k; b.z += (f.z - b.z) * k;
+    // dead reckoning: show where the opponent is now, not where the last packet said they were
+    const f = dd.foeT, b = dd.foe, k = 1 - Math.exp(-dt * 30);
+    const age = f.at ? Math.min(0.2, (now - f.at) / 1000 + netRtt / 2000) : 0;
+    const px = f.x + (f.vx || 0) * age, pz = f.z + (f.vz || 0) * age, py = Math.max(0, f.y + (f.vy || 0) * age);
+    b.x += (px - b.x) * k; b.y += (py - b.y) * k; b.z += (pz - b.z) * k;
     let dy = f.yaw - b.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); b.yaw += dy * k; b.mv = f.mv;
   }
   if (dd.foeObj && !dd.foeObj.toppling) {
