@@ -116,6 +116,8 @@ p { margin:8px 0; line-height:1.4; font-weight:500; }
 .hp .bal i { display:block; height:100%; background:var(--steel); }
 .hp.r .bal i { margin-left:auto; }
 #boutLbl { position:absolute; top:max(12px, env(safe-area-inset-top)); left:50%; transform:translateX(-50%); font-family:var(--font-title); font-size:17px; letter-spacing:.04em; opacity:.85; text-shadow:0 2px 6px rgba(0,0,0,.8); white-space:nowrap; }
+#camBtn { position:absolute; top:calc(max(12px, env(safe-area-inset-top)) + 22px); left:calc(50% + 30px); pointer-events:auto; width:38px; height:38px; font-size:16px; }
+#camBtn.on { border-color:var(--gold, #D7A441); background:rgba(215,164,65,.45); }
 #pauseBtn { position:absolute; top:calc(max(12px, env(safe-area-inset-top)) + 22px); left:50%; transform:translateX(-50%); pointer-events:auto; width:38px; height:38px; font-size:16px; }
 #banner { position:fixed; left:0; right:0; top:28%; text-align:center; font-family:var(--font-title); font-weight:900; font-size:clamp(40px,9vw,92px); letter-spacing:.02em; color:var(--parchment);
   text-shadow:0 4px 0 rgba(28,23,20,.8), 0 10px 30px rgba(0,0,0,.6); pointer-events:none; z-index:3; opacity:0; transition:opacity .25s, transform .25s; transform:scale(.96); }
@@ -218,6 +220,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
   <div id="boutLbl">Bout 1 of 8</div>
   <div id="roster" class="hidden"></div>
   <button class="iconbtn" id="pauseBtn" aria-label="Pause">❚❚</button>
+  <button class="iconbtn" id="camBtn" aria-label="Third-person view" title="Third-person view (T)">👤</button>
 </div>
 <div id="banner"></div>
 <div id="tips" class="hidden"></div>
@@ -237,6 +240,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
   <div class="cc"><div class="keys one"><kbd>LMB</kbd></div><b>Flip</b><span>turn the point out sideways, for cuts at the neck</span></div>
   <div class="cc"><div class="keys one"><kbd data-key="ShiftLeft">Shift</kbd></div><b>Run</b><span>spendeth breath (the gold bar)</span></div>
   <div class="cc"><div class="keys one"><kbd data-key="KeyF">F</kbd></div><b>Kick</b><span>or middle-click, to boot a foe off his feet</span></div>
+  <div class="cc"><div class="keys one"><kbd data-key="KeyT">T</kbd></div><b>View</b><span>third-person camera, and back</span></div>
   <div class="cc"><div class="keys one"><kbd>Esc</kbd></div><b>Pause</b><span>and free the mouse</span></div>
   <div class="cct">Click to fight</div>
 </div>
@@ -322,6 +326,7 @@ body.touch #tips { bottom:calc(max(16px, env(safe-area-inset-bottom)) + 140px); 
       <div><kbd><span data-key="KeyE">E</span> / Space</kbd><span>Hold it for the thrusting grip: point straight along thine arm, then drive the tip forward. A good thrust sticketh fast: keep holding and move the mouse to haul thy foe about, then let go to pull the blade free.</span></div>
       <div><kbd><span data-key="KeyC">C</span> / Ctrl</kbd><span>Drop low.</span></div>
       <div><kbd><span data-key="KeyR">R</span> / Tab</kbd><span>When several stand against thee, turn to face the next.</span></div>
+      <div><kbd><span data-key="KeyT">T</span></kbd><span>Swap between thine own eyes and a camera behind thy shoulder.</span></div>
       <div><kbd>Esc</kbd><span>Free the mouse and pause (in a fight with friends, the fight goeth on without thee). Click the field to take up thy sword again.</span></div>
     </div>
     <p style="font-size:15px;opacity:.85;margin-top:-4px">A blow to the head woundeth worst. A swift cut from sword or axe may take off an arm or a leg, and whoso loseth his sword arm or a leg must yield. Cuts glance off good armour, so bring a mace or poleaxe against a knight. Put thy blade in the way to parry.</p>
@@ -464,8 +469,17 @@ const WEAPONS = {
   george:    { name:NAMEFREE ? 'Lanky Ginger Lad' : 'George Richmond', len:1.85, edge:0.3, tip:3.6, grip:0.7, wrist:165, dmg:2.3, kind:'blunt', point:false, hands:2, price:700, look:'george', fat:0.07 },
   // the joke at the end of the armoury: a rocket launcher, with a switch for single shots or full auto
   rpg:       { name:'RPG',           len:1.0,  edge:0.9,  tip:1.0,  grip:0.45,wrist:110, dmg:1.2, kind:'blunt', point:false, hands:2, price:999, look:'rpg', gun:true },
-  // secret: only for one whose name is Sir Keigan. Call the army with Q.
-  kingblade: { name:'Crown Blade',   len:1.1,  edge:0.2,  tip:0.75, grip:0.5, wrist:120, dmg:1.9, kind:'cut',   point:true,  hands:1, price:0,   look:'king', secret:true, king:true },
+  // secret: only for one whose name is Sir Keigan (kingOnly). Every one of them may call the army with Q (king).
+  kingblade: { name:'Crown Blade',   len:1.1,  edge:0.2,  tip:0.75, grip:0.5, wrist:120, dmg:1.9, kind:'cut',   point:true,  hands:1, price:0,   look:'king', secret:true, kingOnly:true, king:true },
+  // the king's own armoury: a mallet whose every blow banisheth (ban), a beam that no armour stoppeth (pierce), a maul that shaketh the ground (shock),
+  // a blade that drinketh (leech), a rotary cannon and a dragon sceptre (guns, see SHOTS), and a sword as long as a man is tall
+  banhammer: { name:'Ban Hammer',    len:1.3,  edge:0.8,  tip:1.9,  grip:0.7, wrist:150, dmg:3.2, kind:'blunt', point:false, hands:2, price:0, look:'banhammer', secret:true, kingOnly:true, king:true, ban:true, fat:0.08 },
+  photon:    { name:'Photon Blade',  len:1.35, edge:0.1,  tip:0.5,  grip:0.3, wrist:100, dmg:2.8, kind:'cut',   point:true,  hands:1, price:0, look:'photon', secret:true, kingOnly:true, king:true, pierce:true },
+  thundermaul:{ name:'Thunder Maul', len:1.1,  edge:0.78, tip:2.6,  grip:0.85,wrist:155, dmg:3.0, kind:'blunt', point:false, hands:2, price:0, look:'maul', secret:true, kingOnly:true, king:true, shock:true, fat:0.06 },
+  crimson:   { name:'Crimson Fang',  len:1.05, edge:0.3,  tip:0.55, grip:0.45,wrist:85,  dmg:2.3, kind:'cut',   point:true,  hands:1, price:0, look:'fang', secret:true, kingOnly:true, king:true, leech:0.6 },
+  vulcan:    { name:'Vulcan Cannon', len:1.1,  edge:0.9,  tip:1.2,  grip:0.6, wrist:125, dmg:1.1, kind:'blunt', point:false, hands:2, price:0, look:'vulcan', secret:true, kingOnly:true, king:true, gun:true, shot:'vulcan' },
+  sceptre:   { name:'Dragonfire Sceptre', len:1.25, edge:0.9, tip:0.9, grip:0.5, wrist:110, dmg:1.2, kind:'blunt', point:false, hands:2, price:0, look:'sceptre', secret:true, kingOnly:true, king:true, gun:true, shot:'sceptre' },
+  titan:     { name:'Titan Edge',    len:2.4,  edge:0.16, tip:2.2,  grip:1.0, wrist:170, dmg:3.0, kind:'cut',   point:true,  hands:2, price:0, look:'titan', secret:true, kingOnly:true, king:true, fat:0.08, broad:2.4 },
   // the lion's paws (not for sale)
   paws:      { name:'Lion Paws',     len:0.34, edge:0.0,  tip:1.3,  grip:0.8, wrist:165, dmg:3.0, kind:'blunt', point:false, hands:1, price:0,   look:'paws', secret:true }
 };
@@ -729,51 +743,63 @@ function sever(w, B, seg) {
 }
 // ---------- The RPG ----------
 // thrust fireth; the flip toggle is the switch: off fireth one rocket per pull, on fireth as fast as it can while held
+// what each gun throws: speed, blast (rad, and kill inside which a lesser foe dieth outright), pow (strength of a wound), boss (share of a
+// beast's health), grav, life and size of a shot, and the pause between shots (cd by single pulls, autoCd held down). k tells the picture.
+const SHOTS = {
+  rpg:     { k: 0, speed: 26, rad: 3.0, kill: 2.2, pow: 1,    boss: 0.25,  grav: 1.5, life: 3,   hit: 0.2,  cd: 0.9,  autoCd: 0.16 },
+  vulcan:  { k: 1, speed: 52, rad: 1.3, kill: 0,   pow: 0.3,   boss: 0.01, grav: 0.3, life: 1.3, hit: 0.1,  cd: 0.05, autoCd: 0.05, always: true, spread: 0.02, recoil: 0.35 },
+  sceptre: { k: 2, speed: 17, rad: 2.6, kill: 1.7, pow: 1,    boss: 0.12,  grav: 0,   life: 3,   hit: 0.25, cd: 0.45, autoCd: 0.3 }
+};
 function gunControl(f, h, tip) {
-  const inp = f.input;
-  f.auto = !!inp.flip;
+  const inp = f.input, S = SHOTS[f.weapon.shot || 'rpg'];
+  f.auto = S.always ? true : !!inp.flip;
   f.fireCd = Math.max(0, (f.fireCd || 0) - DT);
   if (!inp.thrust) { f.pulled = false; return; }
   if (f.fireCd > 0 || (f.pulled && !f.auto) || f.ctrl < 0.3) return;
-  f.pulled = true; f.fireCd = f.auto ? 0.16 : 0.9;
-  const L = len3(tip.x - h.x, tip.y - h.y, tip.z - h.z) || 1, dx = (tip.x - h.x) / L, dy = (tip.y - h.y) / L, dz = (tip.z - h.z) / L;
-  (f.shots || (f.shots = [])).push({ x: tip.x + dx * 0.1, y: tip.y + dy * 0.1, z: tip.z + dz * 0.1, vx: dx * 26, vy: dy * 26, vz: dz * 26 });
+  f.pulled = true; f.fireCd = f.auto ? S.autoCd : S.cd;
+  const L = len3(tip.x - h.x, tip.y - h.y, tip.z - h.z) || 1;
+  let dx = (tip.x - h.x) / L, dy = (tip.y - h.y) / L, dz = (tip.z - h.z) / L;
+  if (S.spread) { dx += (Math.random() - 0.5) * S.spread; dy += (Math.random() - 0.5) * S.spread; dz += (Math.random() - 0.5) * S.spread; }
+  (f.shots || (f.shots = [])).push({ x: tip.x + dx * 0.1, y: tip.y + dy * 0.1, z: tip.z + dz * 0.1, vx: dx * S.speed, vy: dy * S.speed, vz: dz * S.speed,
+    k: S.k, rad: S.rad, kill: S.kill, pow: S.pow, boss: S.boss, grav: S.grav, life: S.life, hit: S.hit });
   // recoil kicketh the launcher back into the shoulder
-  h.px += dx * 0.012; h.py += dy * 0.012; h.pz += dz * 0.012; tip.px += dx * 0.03; tip.py += dy * 0.03 - 0.01; tip.pz += dz * 0.03;
+  const rc = S.recoil == null ? 1 : S.recoil;
+  h.px += dx * 0.012 * rc; h.py += dy * 0.012 * rc; h.pz += dz * 0.012 * rc; tip.px += dx * 0.03 * rc; tip.py += dy * 0.03 * rc - 0.01 * rc; tip.pz += dz * 0.03 * rc;
 }
 function stepRockets(w) {
   const rs = w.rockets || (w.rockets = []);
-  for (const f of w.f) if (f.shots && f.shots.length) { for (const s of f.shots) { rs.push(Object.assign({ owner: f, t: 0, id: (w.rid = (w.rid || 0) + 1) }, s)); w.events.push({ type: 'fire', from: f, x: s.x, y: s.y, z: s.z }); } f.shots.length = 0; }
+  for (const f of w.f) if (f.shots && f.shots.length) { for (const s of f.shots) { rs.push(Object.assign({ owner: f, t: 0, id: (w.rid = (w.rid || 0) + 1) }, s)); w.events.push({ type: 'fire', from: f, k: s.k || 0, x: s.x, y: s.y, z: s.z }); } f.shots.length = 0; }
   for (let i = rs.length - 1; i >= 0; i--) {
-    const r = rs[i]; r.t += DT; r.vy -= 1.5 * DT;
+    const r = rs[i]; r.t += DT; r.vy -= (r.grav == null ? 1.5 : r.grav) * DT;
     r.x += r.vx * DT; r.y += r.vy * DT; r.z += r.vz * DT;
-    let hit = r.y < 0.04 || Math.hypot(r.x, r.z) > ARENA + 0.5 || r.t > 3;
+    let hit = r.y < 0.04 || Math.hypot(r.x, r.z) > ARENA + 0.5 || r.t > (r.life || 3);
     if (!hit) for (const B of w.f) {
       if (B === r.owner && r.t < 0.25) continue;
-      for (const sg of B.segs) { if (sg.off) continue; const [, , d2] = closestSegSeg(r, r, B.p[sg.a], B.p[sg.b]); if (d2 < (sg.r + 0.2) * (sg.r + 0.2)) { hit = true; break; } }
+      for (const sg of B.segs) { if (sg.off) continue; const [, , d2] = closestSegSeg(r, r, B.p[sg.a], B.p[sg.b]); const hr = sg.r + (r.hit == null ? 0.2 : r.hit); if (d2 < hr * hr) { hit = true; break; } }
       if (hit) break;
     }
     if (hit) { explode(w, r); rs.splice(i, 1); }
   }
 }
 function explode(w, r) {
-  const RAD = 3.0, KILL = 2.2;
-  w.events.push({ type: 'boom', from: r.owner, x: r.x, y: Math.max(0.05, r.y), z: r.z });
+  const RAD = r.rad || 3.0, KILL = r.kill == null ? 2.2 : r.kill, POW = r.pow == null ? 1 : r.pow, BOSS = r.boss == null ? 0.25 : r.boss;
+  w.events.push({ type: 'boom', from: r.owner, k: r.k || 0, x: r.x, y: Math.max(0.05, r.y), z: r.z });
   for (const B of w.f) {
     const pel = B.p[PELV], d = len3(pel.x - r.x, pel.y - r.y, pel.z - r.z);
     if (d > RAD) continue;
     const k = 1 - d / RAD;
     // everyone near is flung away and up; only foes are wounded (the owner is spared his own blast)
-    for (const q of B.p) { const qx = q.x - r.x, qy = q.y - r.y + 0.4, qz = q.z - r.z, ql = len3(qx, qy, qz) || 1; const push = 0.09 * k; q.px -= qx / ql * push; q.py -= qy / ql * push * 0.8; q.pz -= qz / ql * push; }
+    for (const q of B.p) { const qx = q.x - r.x, qy = q.y - r.y + 0.4, qz = q.z - r.z, ql = len3(qx, qy, qz) || 1; const push = 0.09 * k * Math.max(POW, 0.2); q.px -= qx / ql * push; q.py -= qy / ql * push * 0.8; q.pz -= qz / ql * push; }
     B.stuck = null;
     if (B === r.owner || allies(B, r.owner) || !B.alive) continue;
     // a rocket that finds a foe leaves nothing to fight: close in he is killed outright (and, where blood is allowed, burst into gore).
     // a beast with a huge health bar (the lion) takes a quarter of it per rocket instead
     const boss = B.maxHp > 300, dead = d < KILL && !boss;
-    const dmg = dead ? Math.max(B.hp, 1) : boss ? B.maxHp * 0.25 * (0.4 + 0.6 * k) : 70 * k * k + 8;
+    const dmg = dead ? Math.max(B.hp, 1) : boss ? B.maxHp * BOSS * (0.4 + 0.6 * k) : (70 * k * k + 8) * POW;
     B.hp -= dmg; B.hitFlash = 1; r.owner.hits++; r.owner.dmgDealt += dmg; B.dmgTaken += dmg;
-    if (!dead) knockDown(B, boss ? 0.5 : 1.4 + k);
-    w.events.push({ type: 'hit', from: r.owner, to: B, zone: 'torso', dmg: Math.min(dmg, 60), x: pel.x, y: pel.y, z: pel.z, nx: 0, ny: 1, nz: 0, speed: 20, blast: true, kill: dead || B.hp <= 0 });
+    // a bullet only wounds; a blast flings its victim down
+    if (!dead && POW >= 0.5) knockDown(B, boss ? 0.5 : 1.4 + k);
+    w.events.push({ type: 'hit', from: r.owner, to: B, zone: 'torso', dmg: Math.min(dmg, 60), x: pel.x, y: pel.y, z: pel.z, nx: 0, ny: 1, nz: 0, speed: 20, blast: true, soft: POW < 0.5, kill: dead || B.hp <= 0 });
     if (B.hp <= 0) {
       B.hp = 0; out(w, B, 'blown');
       if (!root.SB_NO_BLOOD) { B.gibbed = true; w.events.push({ type: 'gib', to: B, x: pel.x, y: pel.y, z: pel.z }); }
@@ -852,6 +878,29 @@ function setWeapon(f, id) {
   return true;
 }
 
+// the king's armoury at the moment of a blow: the Ban Hammer banisheth a lesser foe outright (a beast loseth a tenth of his health),
+// the Crimson Fang heals him who wieldeth it, the Thunder Maul flingeth every foe nearby to the ground
+function devHit(w, A, B, W, dmg, x, y, z) {
+  if (W.leech && dmg > 0) A.hp = Math.min(A.maxHp, A.hp + dmg * W.leech);
+  if (W.ban) {
+    if (B.maxHp > 300) { if (B.alive) { B.hp = Math.max(0, B.hp - B.maxHp * 0.1); if (B.hp <= 0) out(w, B, 'beaten'); w.events.push({ type: 'ban', from: A, to: B, x, y, z, part: true }); } }
+    else if (B.alive || B.out === 'beaten') { B.hp = 0; B.alive = false; B.out = 'banned'; B.ctrl = 0; B.down = 1e9; B.stuck = null; w.events.push({ type: 'ban', from: A, to: B, x, y, z }); }
+  }
+  if (W.shock && (A.shockCd || 0) <= w.t) {
+    A.shockCd = w.t + 0.9;
+    for (const C of w.f) {
+      if (C === A || !C.alive || allies(A, C)) continue;
+      const pc = C.p[PELV], dd = Math.hypot(pc.x - x, pc.z - z);
+      if (dd > 3.6) continue;
+      const k = 1 - dd / 3.6, hv = C.heavy || 1;
+      for (const q of C.p) { const qx = q.x - x, qz = q.z - z, ql = Math.hypot(qx, qz) || 1; q.px -= qx / ql * 0.07 * k / hv; q.pz -= qz / ql * 0.07 * k / hv; q.py -= 0.02 * k; }
+      C.stuck = null;
+      if (C !== B) { C.hp = Math.max(1, C.hp - 5 * k); C.hitFlash = 1; }
+      knockDown(C, (0.7 + 0.8 * k) / hv);
+    }
+    w.events.push({ type: 'shock', from: A, x, y: Math.max(0.1, y), z });
+  }
+}
 function weaponHits(w, A, B) {
   if (!A.armed) return;
   if (A.stuck && A.stuck.B === B) return;  // the blade is already in him
@@ -880,7 +929,7 @@ function weaponHits(w, A, B) {
     const thrust = W.point && u > 0.8 && along > 2 && along > 0.6 * len3(rx, ry, rz);
     const speed = thrust ? along : vn;
     const armor = B.armor[ZONE_SLOT[sg.zone]].val;
-    const block = stops(armor, W.kind, thrust);
+    const block = W.pierce ? 0 : stops(armor, W.kind, thrust);
     const ck = B.idx * 100 + si, cool = (A.cool[ck] || 0) > w.t;
     const mEff = W.tip * u * u + W.grip + 1.2;
     if (vn > 0) {
@@ -894,6 +943,7 @@ function weaponHits(w, A, B) {
         after = glance ? -0.3 * vn : (thrust ? 0.1 * vn : 0.3 * vn);
         const chop = sg.cut && !glance && !thrust && W.kind !== 'blunt' && !W.nosever && base >= SEVER_AT && B.alive;
         applyHit(w, A, B, { zone: sg.zone, dmg, armor, glance, thrust, x: cp.x + nx * d, y: cp.y + ny * d, z: cp.z + nz * d, nx, ny, nz, speed, chop });
+        if ((W.ban || W.leech || W.shock) && !glance) devHit(w, A, B, W, dmg, cp.x + nx * d, cp.y + ny * d, cp.z + nz * d);
         if (thrust && !glance && dmg > 3 && !A.stuck && sg.zone !== 'head') { impale(w, A, B, si, sb, u); return; }
         // builds for strict portals (CrazyGames' PEGI 12) set SB_NO_SEVER: a limb-taking blow knocks the fighter flat instead
         if (chop && root.SB_NO_SEVER) knockDown(B, 1.4);
@@ -1287,11 +1337,11 @@ function loadSave(raw) {
     own: { weapon: list(own.weapon, ['arming', 'fists']), head: list(own.head, ['none']), torso: list(own.torso, ['tunic']), limbs: list(own.limbs, ['none']) },
     eq: { weapon: eq.weapon || 'arming', head: eq.head || 'none', torso: eq.torso || 'tunic', limbs: eq.limbs || 'none' },
     muted: !!s.muted, seenHow: !!s.seenHow, bestEndless: s.bestEndless | 0, name: typeof s.name === 'string' ? s.name.slice(0, 16) : '', mpGear: s.mpGear && typeof s.mpGear === 'object' ? s.mpGear : null,
-    look: s.look && typeof s.look === 'object' ? cleanLook(s.look) : null
+    look: s.look && typeof s.look === 'object' ? cleanLook(s.look) : null, third: !!s.third
   };
   if (!o.own.weapon.includes('fists')) o.own.weapon.push('fists');   // bare hands are everyone's from the start
   for (const k of ['weapon', 'head', 'torso', 'limbs']) {
-    if (k === 'weapon' && o.eq.weapon === 'kingblade' && isKingName(o.name)) continue;
+    if (k === 'weapon' && WEAPONS[o.eq.weapon] && WEAPONS[o.eq.weapon].kingOnly && isKingName(o.name)) continue;
     if (!o.own[k].includes(o.eq[k]) || !catalog(k)[o.eq[k]]) o.eq[k] = o.own[k][0];
   }
   return o;
@@ -1358,6 +1408,10 @@ const sfx = (() => {
     },
     boom() { if (!ac) return; noiseBurst('lowpass', 900, 0.6, 1.0, 0.7); noiseBurst('lowpass', 200, 0.8, 0.9, 1.1); this.thud(1); },
     launch() { if (!ac) return; noiseBurst('bandpass', 1400, 0.8, 0.5, 0.35); noiseBurst('lowpass', 500, 0.9, 0.4, 0.2); },
+    chatter() { if (!ac) return; noiseBurst('bandpass', 2400, 1.2, 0.26, 0.05); partial(150, 0.14, 0.05, 0, 'square'); },
+    fireball() { if (!ac) return; noiseBurst('bandpass', 700, 0.7, 0.45, 0.5); partial(220, 0.2, 0.4, 0, 'sawtooth'); },
+    gavel() { if (!ac) return; this.thud(1); [880, 1320, 1760].forEach((f, i) => partial(f, 0.14, 0.7, i * 0.04, 'triangle')); },
+    zap() { if (!ac) return; noiseBurst('highpass', 4000, 0.8, 0.5, 0.35); partial(80, 0.5, 0.5, 0, 'sawtooth'); this.thud(1); },
     thud(v) {
       if (!ac) return; v = clamp(v, 0.15, 1);
       noiseBurst('lowpass', 380, 0.9, 0.7 * v, 0.18);
@@ -1929,15 +1983,71 @@ function buildWeapon(Wp, fo) {
     addMesh(g, bg, STEEL()).position.set(0.02, len - 0.04, 0);
   } else if (look === 'george') {
     buildGeorge(g, len);
-  } else if (Wp === WEAPONS.arming || Wp === WEAPONS.longsword || look === 'sword' || look === 'king') {
+  } else if (look === 'banhammer') {
+    // a gavel the size of an anvil: an iron head in gold bands, a glowing red face to each side
+    const dark = mat('#2A211C', { roughness: 0.7 }), gold = mat('#E2B33C', { metalness: 0.9, roughness: 0.3 }), glow = new T.MeshBasicMaterial({ color: '#FF4A3A' });
+    cyl(0.025, len + 0.05, dark, len / 2 - 0.1); cyl(0.031, 0.22, grip, 0.05);
+    box(0.5, 0.26, 0.26, mat('#5A5F68', { metalness: 0.85, roughness: 0.5, detail: 'steel' }), 0.02, len - 0.02);
+    for (const sd of [-1, 1]) { box(0.03, 0.3, 0.3, gold, 0.02 + sd * 0.25, len - 0.02); const face = addMesh(g, new T.BoxGeometry(0.012, 0.15, 0.15), glow, false); face.position.set(0.02 + sd * 0.266, len - 0.02, 0); }
+    for (const sd of [-1, 1]) { const rune = addMesh(g, new T.BoxGeometry(0.34, 0.12, 0.012), glow, false); rune.position.set(0.02, len - 0.02, sd * 0.136); }
+    box(0.52, 0.03, 0.3, gold, 0.02, len + 0.12); box(0.52, 0.03, 0.3, gold, 0.02, len - 0.16);
+    const pom = addMesh(g, sphereGeo, gold); pom.scale.setScalar(0.04); pom.position.y = -0.12;
+  } else if (look === 'photon') {
+    // a hilt and a rod of white light in a blue halo
+    const hilt = mat('#3A3F4A', { metalness: 0.9, roughness: 0.35 });
+    cyl(0.02, 0.26, hilt, -0.05); for (const y of [-0.12, -0.04, 0.04]) cyl(0.024, 0.014, DARKSTEEL(), y);
+    box(0.09, 0.03, 0.04, DARKSTEEL(), 0, 0.09);
+    const bl = len - 0.1, core = addMesh(g, new T.CylinderGeometry(0.014, 0.014, bl, 8), new T.MeshBasicMaterial({ color: '#F2FFFF' }), false); core.position.y = 0.1 + bl / 2;
+    const halo = addMesh(g, new T.CylinderGeometry(0.036, 0.036, bl, 10), new T.MeshBasicMaterial({ color: '#4FD6FF', transparent: true, opacity: 0.4, blending: T.AdditiveBlending, depthWrite: false }), false); halo.position.copy(core.position);
+    const cap = addMesh(g, sphereGeo, new T.MeshBasicMaterial({ color: '#F2FFFF' }), false); cap.scale.setScalar(0.016); cap.position.y = 0.1 + bl;
+  } else if (look === 'maul') {
+    // a haft through an iron drum that crackles with blue light
+    const dark = mat('#2E2620', { roughness: 0.8 }), iron = mat('#4A4F58', { metalness: 0.85, roughness: 0.5 }), glow = new T.MeshBasicMaterial({ color: '#7FDCFF' });
+    cyl(0.028, len + 0.1, dark, len / 2 - 0.1); cyl(0.034, 0.22, grip, 0.0);
+    const drum = addMesh(g, new T.CylinderGeometry(0.15, 0.15, 0.42, 14), iron); drum.rotation.z = Math.PI / 2; drum.position.set(0.02, len - 0.02, 0);
+    for (const sd of [-1, 1]) {
+      const cap = addMesh(g, new T.CylinderGeometry(0.11, 0.15, 0.04, 14), mat('#B0B6BE', { metalness: 0.9, roughness: 0.4 })); cap.rotation.z = Math.PI / 2; cap.position.set(0.02 + sd * 0.22, len - 0.02, 0);
+      const band = addMesh(g, new T.TorusGeometry(0.156, 0.012, 6, 22), glow, false); band.rotation.y = Math.PI / 2; band.position.set(0.02 + sd * 0.09, len - 0.02, 0);
+    }
+  } else if (look === 'vulcan') {
+    // six barrels around a spindle (they spin when it fires), a drum of rounds and a pistol grip
+    const dark = mat('#3A4048', { metalness: 0.85, roughness: 0.45 }), brass = mat('#C9A04A', { metalness: 0.85, roughness: 0.35 });
+    const rot = new T.Group(); g.add(rot); g.userData.spin = rot;
+    for (let k = 0; k < 6; k++) { const a = k / 6 * Math.PI * 2, b = addMesh(rot, new T.CylinderGeometry(0.014, 0.014, len + 0.3, 6), DARKSTEEL()); b.position.set(Math.cos(a) * 0.045, (len - 0.3) / 2 + 0.05, Math.sin(a) * 0.045); }
+    for (const y of [0.3, len - 0.12]) { const d = addMesh(rot, new T.CylinderGeometry(0.066, 0.066, 0.03, 12), brass); d.position.y = y; }
+    const hub = addMesh(rot, new T.CylinderGeometry(0.03, 0.03, len + 0.3, 8), dark); hub.position.y = (len - 0.3) / 2 + 0.05;
+    box(0.1, 0.22, 0.14, dark, 0, 0.0);
+    const drum = addMesh(g, new T.CylinderGeometry(0.095, 0.095, 0.14, 14), mat('#4A5A3A', { metalness: 0.6, roughness: 0.5 })); drum.rotation.x = Math.PI / 2; drum.position.set(0, -0.02, -0.13);
+    box(0.035, 0.15, 0.045, grip, 0, -0.14).position.z = 0.03;
+  } else if (look === 'sceptre') {
+    // a dark staff in gold rings, ending in a dragon's claw round a coal of fire
+    const gold = mat('#E2B33C', { metalness: 0.9, roughness: 0.28 }), dark = mat('#2B1E18', { roughness: 0.6 });
+    cyl(0.02, len + 0.1, dark, len / 2 - 0.1); cyl(0.027, 0.2, grip, 0.0);
+    for (const y of [0.18, 0.4, len - 0.2]) cyl(0.026, 0.02, gold, y);
+    const orb = addMesh(g, sphereGeo, new T.MeshBasicMaterial({ color: '#FFB35A' }), false); orb.scale.setScalar(0.07); orb.position.y = len + 0.03;
+    const halo = addMesh(g, sphereGeo, new T.MeshBasicMaterial({ color: '#FF6A1A', transparent: true, opacity: 0.4, blending: T.AdditiveBlending, depthWrite: false }), false); halo.scale.setScalar(0.12); halo.position.y = len + 0.03;
+    for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2, cl = addMesh(g, new T.ConeGeometry(0.014, 0.22, 5), gold); cl.position.set(Math.cos(a) * 0.075, len - 0.04, Math.sin(a) * 0.075); cl.rotation.set(Math.sin(a) * 0.3, 0, -Math.cos(a) * 0.3); }
+    g.userData.orb = orb; g.userData.halo = halo;
+  } else if (Wp === WEAPONS.arming || Wp === WEAPONS.longsword || look === 'sword' || look === 'king' || look === 'fang' || look === 'titan') {
     const gl = Wp.hands === 2 ? 0.28 : 0.14;
     cyl(0.017, gl, grip, 0.06 - gl / 2);
     const pom = addMesh(g, sphereGeo, mat('#C9A04A', { metalness: 0.8, roughness: 0.35 })); pom.scale.setScalar(0.03); pom.position.y = 0.06 - gl;
     box(0.2, 0.02, 0.025, DARKSTEEL(), 0, 0.075);
     const bl = len - 0.09;
     // four-sided cylinder squashed flat: the two bevels of the edge catch the light like a real blade
-    const bw = (Wp.broad || 1) * (Wp.thin || 1), blade = addMesh(g, new T.CylinderGeometry(0.03 * bw, 0.033 * bw, bl * 0.86, 4, 1), STEEL()); blade.scale.set(0.75, 1, 0.13); blade.position.y = 0.085 + bl * 0.43;
-    const pt = addMesh(g, new T.ConeGeometry(0.03 * bw, bl * 0.14, 4), STEEL()); pt.scale.set(0.75, 1, 0.13); pt.position.y = 0.085 + bl * 0.93;
+    const bladeM = look === 'fang' ? mat('#B3122A', { metalness: 0.7, roughness: 0.28, emissive: '#6A0614', emissiveIntensity: 0.7 }) : look === 'titan' ? mat('#2C3340', { metalness: 0.9, roughness: 0.4, emissive: '#1B6E8C', emissiveIntensity: 0.4, detail: 'steel' }) : STEEL();
+    const bw = (Wp.broad || 1) * (Wp.thin || 1), blade = addMesh(g, new T.CylinderGeometry(0.03 * bw, 0.033 * bw, bl * 0.86, 4, 1), bladeM); blade.scale.set(0.75, 1, 0.13); blade.position.y = 0.085 + bl * 0.43;
+    const pt = addMesh(g, new T.ConeGeometry(0.03 * bw, bl * 0.14, 4), bladeM); pt.scale.set(0.75, 1, 0.13); pt.position.y = 0.085 + bl * 0.93;
+    if (look === 'fang') {
+      // two fangs for a guard, and a dark gem
+      const bone = mat('#EFE6D0', { roughness: 0.5 });
+      for (const sd of [-1, 1]) { const fg = addMesh(g, new T.ConeGeometry(0.02, 0.16, 5), bone); fg.position.set(sd * 0.1, 0.1, 0); fg.rotation.z = -sd * 2.3; }
+      const gem = addMesh(g, sphereGeo, mat('#3A0610', { emissive: '#FF2A4A', emissiveIntensity: 0.8, roughness: 0.2 })); gem.scale.setScalar(0.024); gem.position.set(0, 0.075, 0.022);
+    } else if (look === 'titan') {
+      // a vast guard and glowing runes down the flat of the blade
+      box(0.62, 0.05, 0.07, mat('#8A6A2A', { metalness: 0.85, roughness: 0.4 }), 0, 0.09);
+      for (let k = 0; k < 7; k++) { const rn = addMesh(g, new T.BoxGeometry(0.03, 0.05, 0.02), new T.MeshBasicMaterial({ color: '#6FE3FF' }), false); rn.position.set(0, 0.35 + k * (bl - 0.5) / 7, 0.012); }
+    }
     if (look === 'king') {
       // gold from hilt to point: a heavy guard, a crown for a pommel and a ruby
       const gold = mat('#E2B33C', { metalness: 0.9, roughness: 0.28 });
@@ -1995,7 +2105,7 @@ function updateFighterView(v, firstPerson) {
   const f = v.f, p = f.p, F = tmpD.set(f.F[0], 0, f.F[2]), FT = f.fat || 1;
   // a fighter blown to gore, or a guard whose king hath fallen, is gone from the ring
   if (f.master && !f.alive && f.corpseAt == null) f.corpseAt = clock;
-  const gone = !!f.gibbed || f.out === 'vanish' || (f.master && !f.alive && clock - f.corpseAt > 8);
+  const gone = !!f.gibbed || f.out === 'vanish' || f.out === 'banned' || (f.master && !f.alive && clock - f.corpseAt > 8);
   if (v.grp.visible === gone) v.grp.visible = !gone;
   if (gone) return;
   for (const l of v.limbs) { const [a, b] = f.bones[l.bi]; placeSeg(l.mesh, p[a], p[b]); }
@@ -2053,6 +2163,9 @@ function updateFighterView(v, firstPerson) {
     const sp = len3(...vel(t)), fl = Math.min(1.4, sp * 0.09);
     v.weapon.userData.arms.forEach((a, i) => { const sd = a.userData.sd; a.rotation.z = sd * (0.18 + fl) + Math.sin(clock * 5 + i * 2) * 0.1; a.rotation.x = Math.sin(clock * 4.3 + i) * 0.18 + fl * 0.5; });
   }
+  const wud = v.weapon.userData;
+  if (wud.spin) wud.spin.rotation.y += f.alive && f.input.thrust ? 0.6 : 0;
+  if (wud.orb) { const pu = 1 + 0.14 * Math.sin(clock * 6); wud.orb.scale.setScalar(0.07 * pu); wud.halo.scale.setScalar(0.12 * pu); }
   if (v.weapon.userData.sw) { const on = !!f.input.flip; v.weapon.userData.sw.material.color.set(on ? '#3AD04A' : '#C83A2A'); v.weapon.userData.sw.material.emissive.set(on ? '#3AD04A' : '#C83A2A'); }
   // cut ends get a cap on both sides (red and bleeding when blood is on)
   while (v.stumps.length < f.stumps.length) {
@@ -2297,6 +2410,20 @@ function cycleTarget() {
 }
 
 const PART_NAME = { [I.SH_R]: 'sword arm', [I.ELB_R]: 'sword hand', [I.SH_L]: 'arm', [I.ELB_L]: 'hand', [I.PELV]: 'leg', [I.KNEE_R]: 'leg', [I.KNEE_L]: 'leg' };
+let lastSoftSfx = -9, lastGunSfx = -9;
+// a flat ring that spreadeth along the ground and fadeth: the maul's shock, a fireball's burst
+const rings = [], ringGeo = new T.RingGeometry(0.9, 1, 40);
+function ring(x, y, z, col, rad) {
+  const m = new T.Mesh(ringGeo, new T.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.8, side: T.DoubleSide, depthWrite: false, blending: T.AdditiveBlending }));
+  m.rotation.x = -Math.PI / 2; m.position.set(x, y, z); m.scale.setScalar(0.2); scene.add(m); rings.push({ m, t: 0, rad });
+}
+function updateRings(dt) {
+  for (let i = rings.length - 1; i >= 0; i--) {
+    const r = rings[i]; r.t += dt; const k = r.t / 0.45;
+    if (k >= 1) { scene.remove(r.m); r.m.material.dispose(); rings.splice(i, 1); continue; }
+    r.m.scale.setScalar(0.2 + r.rad * (1 - (1 - k) * (1 - k))); r.m.material.opacity = 0.8 * (1 - k);
+  }
+}
 function handleEvents() {
   for (const e of world.events) {
     if (e.type === 'gib') {
@@ -2310,10 +2437,36 @@ function handleEvents() {
       continue;
     }
     if (e.type === 'vanish') { sparks(e.x, 1, e.z, 8, 2); dust(e.x, 0.3, e.z, 5); continue; }
+    if (e.type === 'ban') {
+      sparks(e.x, e.y, e.z, e.part ? 22 : 46, 6); dust(e.x, e.y, e.z, 8); sfx.gavel(); cheer = Math.min(1, cheer + 0.4); hitStop = Math.max(hitStop, 0.07); shake = Math.max(shake, 0.5);
+      pop(e.x, e.y + 0.35, e.z, e.part ? 'The gavel falls!' : 'BANNED!', '#FF7A66');
+      if (!e.part && e.to) { const pl = e.to.p[I.PELV]; sparks(pl.x, 1, pl.z, 24, 3); }
+      continue;
+    }
+    if (e.type === 'shock') {
+      sfx.zap(); sparks(e.x, e.y, e.z, 60, 9); dust(e.x, 0.1, e.z, 16); ring(e.x, 0.06, e.z, '#8FE3FF', 3.6); ring(e.x, 0.1, e.z, '#FFFFFF', 2.2);
+      shake = Math.max(shake, 0.7); hitStop = Math.max(hitStop, 0.05); cheer = Math.min(1, cheer + 0.3);
+      continue;
+    }
+    if (e.type === 'hit' && e.soft) {
+      // a bullet: a spatter and a small sound, never the full shake of a blow
+      bleed(e.x, e.y, e.z, 3, 1, 0, 0.5, 0); sparks(e.x, e.y, e.z, 3, 3);
+      if (fightT - (lastSoftSfx || -9) > 0.09) { lastSoftSfx = fightT; sfx.thud(0.3); }
+      if (e.dmg > 2 && e.to && fightT - (e.to.lastHurt || -9) > 0.5) { e.to.lastHurt = fightT; sfx.hurt(e.to === player ? 0.8 : 0.4, e.to.voiceLow); }
+      if (e.to === player) shake = Math.max(shake, 0.18);
+      if (e.kill) { slowMo = 1.0; sfx.roar(1); }
+      continue;
+    }
     if (e.type === 'roar') { sfx.lion(e.from ? 0.35 + earVol(e.from) * 0.65 : 1); shake = Math.max(shake, 0.35); continue; }
-    if (e.type === 'fire') { sfx.launch(); dust(e.x, e.y, e.z, 3); if (e.from === player) shake = Math.max(shake, 0.25); continue; }
+    if (e.type === 'fire') {
+      if (e.k === 1) { if (fightT - (lastGunSfx || -9) > 0.06) { lastGunSfx = fightT; sfx.chatter(); sparks(e.x, e.y, e.z, 2, 2); } if (e.from === player) shake = Math.max(shake, 0.07); continue; }
+      if (e.k === 2) { sfx.fireball(); sparks(e.x, e.y, e.z, 14, 3); if (e.from === player) shake = Math.max(shake, 0.2); continue; }
+      sfx.launch(); dust(e.x, e.y, e.z, 3); if (e.from === player) shake = Math.max(shake, 0.25); continue;
+    }
+    if (e.type === 'boom' && e.k === 1) { sparks(e.x, e.y, e.z, 3, 3); continue; }
     if (e.type === 'boom') {
-      sfx.boom(); sparks(e.x, e.y, e.z, 40, 7); dust(e.x, e.y, e.z, 14); cheer = Math.min(1, cheer + 0.35);
+      sfx.boom(); sparks(e.x, e.y, e.z, e.k === 2 ? 60 : 40, e.k === 2 ? 9 : 7); dust(e.x, e.y, e.z, 14); cheer = Math.min(1, cheer + 0.35);
+      if (e.k === 2) ring(e.x, Math.max(0.1, e.y), e.z, '#FF8A2A', 2.6);
       const near = player ? Math.hypot(player.p[I.PELV].x - e.x, player.p[I.PELV].z - e.z) : 9; shake = Math.max(shake, clamp(1.4 - near * 0.25, 0.2, 1));
       continue;
     }
@@ -2436,6 +2589,31 @@ function firstPersonCam(dt) {
   camera.lookAt(camLook);
   shake = Math.max(0, shake - dt * 3);
 }
+// third person (T): the camera rides behind and above thy right shoulder, looking past thee at the foe
+let third = !!save.third;
+function thirdPersonCam(dt) {
+  const p = player.p, head = p[I.HEAD], pel = p[I.PELV], neck = p[I.NECK], F = player.F, Rx = -F[2], Rz = F[0];
+  const down = player.down > 0 || !player.alive;
+  // the boom is shortened until the camera is inside the fence
+  let d = 3.3, cx = 0, cz = 0;
+  for (let i = 0; i < 8; i++) { cx = pel.x - F[0] * d + Rx * 0.5; cz = pel.z - F[2] * d + Rz * 0.5; if (Math.hypot(cx, cz) < ARENA + 0.2 || d < 1) break; d -= 0.3; }
+  const cy = Math.max(head.y, 0.6) + (down ? 1.4 : 0.95);
+  camPos.lerp(tmpA.set(cx, cy, cz), 0.18);
+  const fc = facing().p[I.NECK];
+  const target = down ? tmpB.set(pel.x, pel.y + 0.3, pel.z) : tmpB.set(fc.x * 0.55 + head.x * 0.45, fc.y * 0.5 + head.y * 0.5 - 0.35, fc.z * 0.55 + head.z * 0.45);
+  camLook.lerp(target, 0.14);
+  camera.position.copy(camPos);
+  if (shake > 0) camera.position.add(tmpC.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(shake * 0.05));
+  camera.up.set(0, 1, 0);
+  camera.lookAt(camLook);
+  shake = Math.max(0, shake - dt * 3);
+  void neck;
+}
+function setThird(on, quiet) {
+  third = !!on; save.third = third; persist();
+  $('camBtn').classList.toggle('on', third);
+  if (!quiet) { sfx.click(); tips(third ? 'Third-person view. Press ' + keyName('KeyT') + ' to return to thine own eyes.' : 'Thine own eyes once more.'); }
+}
 function orbitCam(dt, t) {
   const mid = tmpA.set(0, 1.1, 0);
   for (const f of fighters) { mid.x += f.p[I.PELV].x / fighters.length; mid.z += f.p[I.PELV].z / fighters.length; }
@@ -2464,7 +2642,7 @@ function finishBout() {
     const last = foeIdx === FOES.length - 1;
     if (last) { save.crowns++; save.bout = 0; } else save.bout = foeIdx + 1;
     $('resLbl').textContent = last ? 'Champion of the Pit' : 'Victory · bout ' + (foeIdx + 1);
-    $('resTitle').textContent = foe.out === 'disarmed' ? 'Disarmed! ' + fo.name + ' yieldeth.' : foe.out === 'leg' ? fo.name + ' cannot stand, and yieldeth!' : foe.out === 'blown' ? fo.name + (BLOOD ? ' is blown to pieces!' : ' is blasted flat!') : fo.lion ? fo.name + ' falleth at last!' : fo.name + ' is laid out cold!';
+    $('resTitle').textContent = foe.out === 'disarmed' ? 'Disarmed! ' + fo.name + ' yieldeth.' : foe.out === 'leg' ? fo.name + ' cannot stand, and yieldeth!' : foe.out === 'banned' ? fo.name + ' hath been banned from the Pit!' : foe.out === 'blown' ? fo.name + (BLOOD ? ' is blown to pieces!' : ' is blasted flat!') : fo.lion ? fo.name + ' falleth at last!' : fo.name + ' is laid out cold!';
     $('resText').textContent = last ? 'Goldmane the Lion lieth still, and the crowd is beside itself. The gauntlet beginneth anew, and thou keepest thy gear.' : 'Next cometh ' + FOES[foeIdx + 1].name + ', ' + FOES[foeIdx + 1].sub + '.';
     html = '<div class="label">Thy purse</div><div style="font-size:15px;margin-top:4px">' + fo.purse + ' gold' + bonus.map(b => ' · ' + esc(b[0]) + ' +' + b[1]).join('') + '</div>' +
       '<div class="goldtxt" style="font-size:24px;margin-top:6px">+' + gold + ' gold</div>';
@@ -2533,8 +2711,8 @@ function renderArmory() {
   for (const b of $('tabs').children) b.classList.toggle('on', b.dataset.tab === armTab);
   const cat = catalog(armTab);
   const king = kingOk();
-  $('items').innerHTML = Object.entries(cat).filter(([id, it]) => (it.price > 0 || save.own[armTab].includes(id) || (id === 'kingblade' && king)) && (!it.secret || (id === 'kingblade' && king))).map(([id, it]) => {
-    const own = save.own[armTab].includes(id) || (id === 'kingblade' && king), eq = save.eq[armTab] === id;
+  $('items').innerHTML = Object.entries(cat).filter(([id, it]) => (it.price > 0 || save.own[armTab].includes(id) || (it.kingOnly && king)) && (!it.secret || (it.kingOnly && king))).map(([id, it]) => {
+    const own = save.own[armTab].includes(id) || (it.kingOnly && king), eq = save.eq[armTab] === id;
     let stats, desc;
     if (armTab === 'weapon') {
       const speed = clamp(1.3 - it.tip * 0.6 + (it.hands === 2 ? 0.15 : 0), 0, 1), power = clamp(it.dmg * it.tip / 2.4, 0, 1), armorP = it.kind === 'blunt' ? 0.9 : it.kind === 'chop' ? 0.45 : 0.15;
@@ -2542,7 +2720,12 @@ function renderArmory() {
       desc = ({ club:'A knotted stick. Better than thy fists, but not by much.', arming:'Light and quick, with a point for thrusting. A swift cut may take a limb.', mace:'A flanged steel head. It crusheth through mail and plate, but never cutteth.',
         axe:'Heavy chops that bite into mail and take off limbs.', longsword:'Two hands, a long reach, quick and keen. The knight\'s choice.', dagger:'A short stabbing blade. Quick as a wasp, and as short of reach.', falchion:'A broad, heavy single edge that chops like a cleaver.', hammer:'A steel beak and a flat face. Plate ringeth like a bell beneath it.', estoc:'A long stiff spike of a sword, made to find the gaps in armour.', morningstar:'A spiked iron ball upon a haft. Cruel against any armour.', greataxe:'A Danish two-handed axe. Wide swings that take limbs clean off.', greatsword:'A great two-handed blade, longer than a man is tall to the shoulder.', halberd:'Axe blade, hook and spike on a long pole. Keep thy foes far off.', rpg:'A rocket launcher, somehow. Thrust to fire. Left-click flicketh the switch on the side for full auto.', spear:'A long ash haft with a broad leaf of steel and a crossbar. Keep them at the end of it, and run them through.', poleaxe:'An axe, a hammer and a spike upon a long haft. Slow to get going, dreadful to stop.',
         fists:'Thy bare knuckles. Free, quick, and a good deal better than nothing at close quarters.', whip:'Two yards of braided leather that trail the hand and crack at the tip. Stings fast from far off, though it never takes a limb.', scythe:'A harvest blade on a long snath. A wide crescent that reaps limbs, with dreadful reach.',
-        george:(WEAPONS.george.name) + ', a tall lanky ginger fellow, swung about by the ankles. Terribly heavy, and he flaileth about as thou swingest.', kingblade:'The Crown Blade, for a king alone. Press Q to call a royal guard that striketh every one but thee.' })[id];
+        george:(WEAPONS.george.name) + ', a tall lanky ginger fellow, swung about by the ankles. Terribly heavy, and he flaileth about as thou swingest.', kingblade:'The Crown Blade, for a king alone. Press Q to call a royal guard that striketh every one but thee.',
+        banhammer:'A gavel the size of a smith\'s anvil. Any lesser foe it toucheth is banned from the Pit on the spot, and a beast loseth a tenth of his health.', photon:'A blade of pure light. No armour in the realm stoppeth it, and it cutteth quick as thought.',
+        thundermaul:'A drum-headed maul, wrapped in lightning. Each blow shaketh the ground and flingeth every foe nearby on his back.', crimson:'A fang of red steel that drinketh what it spilleth: every wound it dealeth healeth thee.',
+        vulcan:'A six-barrelled rotary cannon. Hold thrust and it spitteth lead without pause. Aim along thine arm.', sceptre:'A dragon\'s claw about a coal of living fire. Hold the Switch (left-click) for rapid fire. A fireball burneth every foe it burst upon.',
+        titan:'A sword as long as a man is tall, forged for a giant. It cleaveth through anything, if thou canst lift it.' })[id];
+      if (it.kingOnly) desc += ' Press Q to call the royal guard.';
       desc += it.hands === 2 ? ' Two-handed.' : '';
     } else {
       stats = '<span class="stat">Protection ' + bars(it.val) + '</span><span class="stat">Weight ' + bars(it.kg / 14) + '</span>';
@@ -2632,10 +2815,10 @@ const DUMMY_LOOK = { skin: '#C8A776', hair: '#B08850', tunic: '#9C8456', hose: '
 const solo = { kind: null, kills: 0, nextAt: -1, best: 0, lastHit: 0, bestHit: 0, lvl: 0 };
 // the Crown Blade is only ever in the hands of one named Sir Keigan
 const kingOk = () => isKingName(save.name);
-function myGear() { return { weapon: save.eq.weapon === 'kingblade' && !kingOk() ? 'arming' : save.eq.weapon, armor: { head: save.eq.head, torso: save.eq.torso, limbs: save.eq.limbs } }; }
+function myGear() { return { weapon: WEAPONS[save.eq.weapon] && WEAPONS[save.eq.weapon].kingOnly && !kingOk() ? 'arming' : save.eq.weapon, armor: { head: save.eq.head, torso: save.eq.torso, limbs: save.eq.limbs } }; }
 const myLook = () => cleanLook(save.look, PLAYER_LOOK);
 // weapons that may be picked from a menu: never the lion's paws, and the Crown Blade only for its owner
-const weaponIds = king => Object.keys(WEAPONS).filter(id => !WEAPONS[id].secret || (id === 'kingblade' && king));
+const weaponIds = king => Object.keys(WEAPONS).filter(id => !WEAPONS[id].secret || (WEAPONS[id].kingOnly && king));
 function openModes() {
   sfx.init(); sfx.click(); mode = 'modes'; if (!fighters.length) idleScene();
   $('endlessBest').textContent = 'Thine own gear · 10 gold a head' + (save.bestEndless ? ' · best: ' + save.bestEndless : '');
@@ -2749,7 +2932,7 @@ function swapWeapon(f, id) {
 function pauseWeapons() {
   // with friends every weapon may be tried; alone, the ones thou ownest (any in the training yard)
   const all = mp.on || solo.kind === 'training', king = kingOk();
-  return weaponIds(king).filter(id => all || save.own.weapon.includes(id) || id === 'kingblade');
+  return weaponIds(king).filter(id => all || save.own.weapon.includes(id) || WEAPONS[id].kingOnly);
 }
 function renderPauseWeapon() {
   const sel = $('pauseWeapon'), row = $('pauseWeaponRow');
@@ -2766,6 +2949,16 @@ function pickPauseWeapon(id) {
   if (!mp.on && solo.kind !== 'training') { save.eq.weapon = id; persist(); }
 }
 const rocketMeshes = [], rocketGeo = new T.CylinderGeometry(0.035, 0.035, 0.3, 8), rocketMat = new T.MeshStandardMaterial({ color: '#5C6236', roughness: 0.6 });
+// k 1 is a cannon's tracer, k 2 a dragon's fireball
+const tracerGeo = new T.CylinderGeometry(0.012, 0.012, 0.5, 5), tracerMat = new T.MeshBasicMaterial({ color: '#FFE08A' });
+const fireMat = new T.MeshBasicMaterial({ color: '#FF8A2A' });
+function shotLook(m, k) {
+  if (m.userData.k === k) return;
+  m.userData.k = k;
+  if (k === 1) { m.geometry = tracerGeo; m.material = tracerMat; m.scale.set(1, 1, 1); m.castShadow = false; }
+  else if (k === 2) { m.geometry = sphereGeo; m.material = fireMat; m.scale.setScalar(0.17); m.castShadow = false; }
+  else { m.geometry = rocketGeo; m.material = rocketMat; m.scale.set(1, 1, 1); }
+}
 function drawRockets(dt) {
   const rs = (world && world.rockets) || [];
   for (let i = 0; i < Math.max(rs.length, rocketMeshes.length); i++) {
@@ -2774,8 +2967,10 @@ function drawRockets(dt) {
     if (!m) { m = new T.Mesh(rocketGeo, rocketMat); scene.add(m); rocketMeshes.push(m); }
     const r = rs[i];
     if (mp.on && mp.role === 'client') { r.x += r.vx * dt; r.y += r.vy * dt; r.z += r.vz * dt; }
+    shotLook(m, r.k || 0);
     m.visible = true; m.position.set(r.x, r.y, r.z); _q.setFromUnitVectors(_up, _v.set(r.vx, r.vy, r.vz).normalize()); m.quaternion.copy(_q);
-    if (Math.random() < 0.6) dust(r.x - r.vx * 0.02, r.y, r.z - r.vz * 0.02, 1);
+    if (r.k === 2) { if (Math.random() < 0.8) sparks(r.x, r.y, r.z, 1, 0.8); }
+    else if (!r.k && Math.random() < 0.6) dust(r.x - r.vx * 0.02, r.y, r.z - r.vz * 0.02, 1);
   }
 }
 function respawn(i, f) {
@@ -2802,7 +2997,7 @@ function finishMode() {
     text = solo.kind === 'melee' ? 'Three brawlers in the sand, and thee still on thy feet.' : 'Two against one, and still they could not have thee.';
   } else {
     gold = 10;
-    lbl = solo.kind === 'melee' ? 'The Melee' : 'Outnumbered'; title = player.out === 'disarmed' ? 'Disarmed. Thou yieldest.' : player.out === 'leg' ? 'Thou canst not stand. Thou yieldest.' : 'Thou art laid out cold';
+    lbl = solo.kind === 'melee' ? 'The Melee' : 'Outnumbered'; title = player.out === 'disarmed' ? 'Disarmed. Thou yieldest.' : player.out === 'leg' ? 'Thou canst not stand. Thou yieldest.' : player.out === 'banned' ? 'Thou hast been banned!' : 'Thou art laid out cold';
     text = solo.kind === 'melee' ? 'In a melee, keep thy back to the fence and let them get in each other\'s way.' : 'Step to the side, so one foe standeth in the other\'s path.';
   }
   save.gold += gold;
@@ -2828,7 +3023,7 @@ const BOT_AI = { react: 0.34, aggro: 0.55, skill: 0.55 };
 const TEAM_COLS = ['#A9312B', '#2E4E7C'], TEAM_NAMES = ['Red', 'Blue'];
 const mp = { rules: 'ffa', on: false, role: null, peer: null, conns: new Map(), host: null, code: '', lobby: [], myId: null, round: 0, score: {}, playing: false,
   sendT: 0, snapT: 0, events: [], nextBot: 0, endAt: -1, msgTimer: 0 };
-const gearOf = (g, king) => ({ weapon: WEAPONS[g && g.weapon] && (!WEAPONS[g.weapon].secret || (g.weapon === 'kingblade' && king)) ? g.weapon : 'arming', head: ARMOR.head[g && g.head] ? g.head : 'none',
+const gearOf = (g, king) => ({ weapon: WEAPONS[g && g.weapon] && (!WEAPONS[g.weapon].secret || (WEAPONS[g.weapon].kingOnly && king)) ? g.weapon : 'arming', head: ARMOR.head[g && g.head] ? g.head : 'none',
   torso: ARMOR.torso[g && g.torso] ? g.torso : 'tunic', limbs: ARMOR.limbs[g && g.limbs] ? g.limbs : 'none' });
 // Player names are seen by strangers, so rude words are starred out (matched through spaces, dots and number-for-letter swaps).
 const RUDE = ['fuck','shit','cunt','bitch','nigg','faggot','cock','pussy','whore','slut','rape','nazi','hitler','retard','penis','vagina','porn','twat','wank','bastard','asshole','dildo','kike','chink','tranny','pedo','jizz','sexy','boob'];
@@ -3256,7 +3451,7 @@ function enterRing(title, small, label) {
   document.body.classList.toggle('touch', usingTouch);
   if (usingTouch) $('touch').classList.remove('hidden');
   renderRoster();
-  if (player && player.weapon.king && !player.watching) tips('Thou holdest the Crown Blade. Press ' + keyName('KeyQ') + ' (or the Army button) to call thy royal guard: they strike every one but thee.');
+  if (player && player.weapon.king && !player.watching) tips('Thou holdest the ' + player.weapon.name + '. Press ' + keyName('KeyQ') + ' (or the Army button) to call thy royal guard: they strike every one but thee.');
   ads.gameplay(true); lockPointer();
 }
 function mpUpdate(dt) {
@@ -3351,7 +3546,7 @@ function mpSnapshot() {
   const snap = { t: 'snap', rd: mp.round, ev: mp.events, f: fighters.map(f => {
     const pos = []; for (const q of f.p) pos.push(r3(q.x), r3(q.y), r3(q.z));
     return [pos, Math.round(f.hp * 10) / 10, r3(f.ctrl), f.down > 0 ? 1 : 0, f.alive ? 1 : 0, f.out, r3(f.F[0]), r3(f.F[2]), f.target ? f.target.idx : -1, r3(f.hitFlash), Math.round(f.stam * 100) / 100, f.kickT > 0 ? 1 : 0, Object.keys(WEAPONS).find(k => WEAPONS[k] === f.weapon)];
-  }), r: (world.rockets || []).map(r => [r3(r.x), r3(r.y), r3(r.z), r3(r.vx), r3(r.vy), r3(r.vz)]),
+  }), r: (world.rockets || []).map(r => [r3(r.x), r3(r.y), r3(r.z), r3(r.vx), r3(r.vy), r3(r.vz), r.k || 0]),
     // the king's guards: slot, uid (so a fresh guard in a used slot is told from the old one), and whose they are
     m: fighters.filter(f => f.master).map(f => [f.idx, f.uid, f.master.idx]) };
   return snap;
@@ -3383,7 +3578,7 @@ function mpApplySnap(d) {
   const now = performance.now();
   if (mp.lastSnapAt) mp.snapGap = (mp.snapGap || 50) * 0.9 + Math.min(300, now - mp.lastSnapAt) * 0.1;
   mp.lastSnapAt = now;
-  if (Array.isArray(d.r)) world.rockets = d.r.map(a => ({ x: a[0], y: a[1], z: a[2], vx: a[3], vy: a[4], vz: a[5] }));
+  if (Array.isArray(d.r)) world.rockets = d.r.map(a => ({ x: a[0], y: a[1], z: a[2], vx: a[3], vy: a[4], vz: a[5], k: a[6] | 0 }));
   d.f.forEach((a, i) => {
     const f = fighters[i], pos = a[0];
     if (f !== player || mp.watching) { (f.hist || (f.hist = [])).push({ t: now, pos }); if (f.hist.length > 12) f.hist.shift(); }
@@ -3486,12 +3681,14 @@ document.addEventListener('pointerover', e => { const b = e.target.closest && e.
 if (PG) for (const b of document.querySelectorAll('[data-act=mp]')) b.classList.add('hidden');
 $('muteBtn').addEventListener('click', () => { sfx.init(); save.muted = !save.muted; persist(); renderMute(); applyMute(); });
 $('pauseBtn').addEventListener('click', () => pause());
+$('camBtn').addEventListener('click', () => setThird(!third));
 window.addEventListener('keydown', e => {
   if (e.code === 'Escape' || e.code === 'KeyP') { if (mode === 'fight') pause(); else if (mode === 'pause' && performance.now() - lockLostAt > 400) resume(); }
   if (!/^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && (e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'PageUp' || e.code === 'PageDown')) e.preventDefault();
   if (mode === 'fight' && e.code === 'Tab') e.preventDefault();
   if (!$('controls').classList.contains('hidden') && mode === 'fight' && !e.repeat && !/^Key[WASD]$|^Arrow/.test(e.code)) controlsCard(false);
   if (mode === 'fight' && (e.code === 'Tab' || e.code === 'KeyR') && !e.repeat) cycleTarget();
+  if ((mode === 'fight' || mode === 'pause') && e.code === 'KeyT' && !e.repeat && !/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) setThird(!third);
   if (mode === 'fight' && solo.kind === 'training' && /^Digit[1-9]$/.test(e.code)) trainingWeapon(+e.code.slice(5) - 1);
   keys[e.code] = true;
   if (mode === 'fight' || mode === 'pause') sfx.init();
@@ -3539,7 +3736,7 @@ document.addEventListener('touchmove', e => { if (!e.target.closest || !e.target
 // iOS keeps audio asleep until a tap or click
 for (const ev of ['touchend', 'click']) document.addEventListener(ev, () => sfx.resume(), { passive: true });
 // Key names follow the player's own keyboard (Z Q S D on AZERTY) where the browser can tell us.
-const KEYNAMES = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D', KeyC: 'C', KeyE: 'E', KeyR: 'R', KeyQ: 'Q' };
+const KEYNAMES = { KeyW: 'W', KeyA: 'A', KeyS: 'S', KeyD: 'D', KeyC: 'C', KeyE: 'E', KeyR: 'R', KeyQ: 'Q', KeyT: 'T' };
 const keyName = code => KEYNAMES[code] || code;
 function relabelKeys() { for (const el of document.querySelectorAll('[data-key]')) el.textContent = keyName(el.dataset.key); }
 try {
@@ -3613,15 +3810,15 @@ function frame(now) {
     if (mode === 'fight' || (mode === 'pause' && mp.on)) updateFight(dt);
     else if (mode !== 'pause') updateIdle(dt);
     const fp = mode === 'fight' || mode === 'pause';
-    if (fp) firstPersonCam(dt); else orbitCam(dt, clock);
+    if (fp) { if (third) thirdPersonCam(dt); else firstPersonCam(dt); } else orbitCam(dt, clock);
     if (camOverride) { const o = camOverride; camera.position.set(...o.pos); camera.up.set(0, 1, 0); camera.lookAt(...o.look); }
     syncViews();
-    views.forEach(v => updateFighterView(v, fp && v === pv));
-    hideNearCamera(pv, fp);
+    views.forEach(v => updateFighterView(v, fp && !third && v === pv));
+    hideNearCamera(pv, fp && !third);
     updateGibs(dt);
     fighters.forEach((f, i) => updateTrail(trails[i], f));
     const pdt = mode === 'fight' ? dt * timeScale : dt;
-    drawRockets(pdt); updateLayer(sparkL, pdt); updateLayer(dustL, pdt); updateLayer(bloodL, pdt);
+    drawRockets(pdt); updateRings(dt); updateLayer(sparkL, pdt); updateLayer(dustL, pdt); updateLayer(bloodL, pdt);
     for (const q of pops) q.t += dt;
     pops = pops.filter(q => q.t < 1.1);
     updateCrowd(clock);
@@ -3657,6 +3854,7 @@ function drawOverlay() {
 }
 
 resize();
+$('camBtn').classList.toggle('on', third);
 renderMute(); applyMute();
 goTitle();
 requestAnimationFrame(frame);
@@ -3671,7 +3869,7 @@ if (PG) {
       PG.platform.on(PG.EVENT_NAME.PAUSE_STATE_CHANGED, paused => { platformPaused = !!paused; if (paused) { pause(); sfx.suspend(); } else { sfx.resume(); last = performance.now(); } });
     } catch (e) {}
     return Promise.resolve(PG.storage.get([KEY])).then(data => {
-      Object.assign(save, loadSave(data && data[0])); renderMute(); applyMute(); if (mode === 'title') goTitle();
+      Object.assign(save, loadSave(data && data[0])); third = !!save.third; $('camBtn').classList.toggle('on', third); renderMute(); applyMute(); if (mode === 'title') goTitle();
     }).catch(() => {});
   }).catch(() => {}).then(() => { pgReady = true; ready(); });
 }
@@ -3681,7 +3879,7 @@ if (TEST) window.__sb = {
   startFight, openBout, openArmory, goTitle, finishBout, keys, mouse, setFoe(i) { save.bout = i; }, camera, get pv() { return pv; }, mp, openMp, mpHost, mpJoin, mpAddBot, mpBegin, get fighters() { return fighters; },
   startMode, makeAI, makeFighter, setFighters, show, idleScene, get views() { return views; }, setCam(o) { camOverride = o; }, setManual(on) { manualClock = on; if (!on) { last = performance.now(); requestAnimationFrame(frame); } },
   advance(ms) { frame(last + ms); }, get clock() { return clock; }, set slowMo(v) { slowMo = v; },
-  swapWeapon, pickPauseWeapon, openCustom, pickLook, kingOk, trainingWeapon, handleEventsNow: handleEvents, gore, syncViews, get solo() { return solo; }, mpSnapshot, mpApplySnap, mpStartRound, get views2() { return views; }, get gibCount() { return gibs.length; }
+  setThird, get third() { return third; }, swapWeapon, pickPauseWeapon, openCustom, pickLook, kingOk, trainingWeapon, handleEventsNow: handleEvents, gore, syncViews, get solo() { return solo; }, mpSnapshot, mpApplySnap, mpStartRound, get views2() { return views; }, get gibCount() { return gibs.length; }
 };
 })();
 
