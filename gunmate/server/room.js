@@ -191,6 +191,14 @@
         const before = this.st.turn;
         this.st = Rules.failMove(this.st, m);
         if (this.st.fell) this.taken[Rules.other(before)].push(Rules.typeOf(m.piece));
+        // the failed capture was the way out of check: the king is still attacked, so it is taken
+        if (Rules.inCheck(this.st, before)) {
+          this.sans.push(san.replace(/[+#]$/, '') + '✗');
+          this.taken[Rules.other(before)].push('k');
+          this.last = { from: m.from, to: m.to, failed: true, fell: this.st.fell };
+          this.end(Rules.other(before), (before === 'w' ? 'White' : 'Black') + "'s king was taken");
+          return;
+        }
       }
       this.sans.push(won ? san : san.replace(/[+#]$/, '') + '✗');
       this.last = { from: m.from, to: m.to, failed: !won, fell: !won && this.st.fell };

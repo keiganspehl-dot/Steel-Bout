@@ -23,7 +23,7 @@ async function game(kingWins) {
   const st = R.fromFEN('4k3/8/8/8/8/8/4R3/4K3 w - - 0 1');
   ok('checkers found', R.checkers(R.fromFEN('3rk3/8/8/8/8/8/8/3K3 w - - 0 1').b, R.sqIndex('d1'), 'b').join() === String(R.sqIndex('d8')));
   ok('pinned piece cannot be removed', R.removePiece(R.fromFEN('4r2k/8/8/8/8/8/4R3/4K3 b - - 0 1'), R.sqIndex('e2')) === null);
-  void st;
+  void st; await sleep(0);
 })();
 // king attacks and loses its duel -> that side loses the game
 (async () => {
@@ -35,5 +35,20 @@ async function game(kingWins) {
   ok('king capture starts a duel with a 60-health king', r.phase === 'duel' && r.duel.hp.w === 60);
   r.finishDuel('b', 'test'); await sleep(2800);
   ok('king lost the fight -> black wins: ' + (r.result && r.result.reason), r.phase === 'over' && r.result.result === 'b');
+})();
+// regression: the failed capture was the only way out of check -> the king is taken, not "stalemate"
+(async () => {
+  await sleep(13000);
+  const r = new Room('C', env0); r.add('a', 'Ann', () => {}); r.add('b', 'Bob', () => {});
+  r.handle('a', { t: 'settings', s: { clock: 0, inc: 0, duels: true } }); r.handle('a', { t: 'start' });
+  r.st = R.fromFEN('4k3/8/8/8/8/8/3r4/3QK3 b - - 0 1'); r.st.keys = []; // black rook takes queen? use a check position instead
+  r.st = R.fromFEN('3rk3/8/8/8/8/8/8/3QK3 b - - 0 1'); r.st.keys = [];
+  r.st = R.fromFEN('4k3/8/8/8/8/8/4r3/3QK3 w - - 0 1'); r.st.keys = [];
+  r.st = R.fromFEN('k7/8/8/8/7q/8/8/4K2R w - - 0 1'); r.st.keys = []; // white king in check from the h4 queen; Rxh4 is a way out
+  r.handle('a', { t: 'move', from: R.sqIndex('h1'), to: R.sqIndex('h4') });
+  ok('Rxh4 (a way out of check) starts a duel', r.phase === 'duel');
+  r.finishDuel('b', 'test'); await sleep(2800);
+  ok('lost the escape duel while in check: black takes the king (' + (r.result && r.result.reason) + ')', r.phase === 'over' && r.result.result === 'b' && /king was taken/.test(r.result.reason));
   process.exit();
 })();
+const env0 = { now: () => Date.now(), later: (f, ms) => setTimeout(f, ms), cancel: t => clearTimeout(t) };

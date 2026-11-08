@@ -232,6 +232,7 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
   <h2>How to play Gunmate</h2>
   <p>It's real chess: every normal rule counts, including castling, en passant, promotion, check, checkmate, stalemate and draws by repetition, the fifty-move rule or too little material.</p>
   <p><b>The twist:</b> when you try to capture, the two pieces fight it out in first person on the board itself, with every other piece standing as cover. Topple the defender and the capture happens. Lose, and your attacker falls instead and your turn is spent. <b>If your king loses a fight, you lose the game</b>, and the king is the weakest fighter on the board, so attack with it carefully. A piece whose fall would leave its own king in check holds its ground. If the 45 seconds run out, whoever has more of their health left wins, and the defender wins a tie.</p>
+  <p><b>King taken:</b> if you capture to get out of check and lose the gunfight, you are still in check, so your king is taken and you lose.</p>
   <p><b>Last stand:</b> checkmate is a forced fight too. The trapped king duels the piece giving check. Topple the king and it's checkmate. If the king wins, the checking piece falls and the game goes on.</p>
   <table>
     <tr><td>Pawn</td><td>Picket carbine</td><td>100 health</td></tr>
@@ -487,6 +488,8 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
   }
   // result for the side to move: null while play goes on
   function status(st) {
+    // a side without a king has lost it (can only happen if a king was taken)
+    for (const c of ['w', 'b']) if (kingSq(st.b, c) < 0) return { over: true, result: other(c), reason: 'king taken' };
     const moves = legalMoves(st), chk = inCheck(st);
     if (!moves.length) return chk ? { over: true, result: other(st.turn), reason: 'checkmate' } : { over: true, result: 'draw', reason: 'stalemate' };
     if (insufficient(st.b)) return { over: true, result: 'draw', reason: 'insufficient material' };
@@ -774,6 +777,14 @@ kbd { font: 700 12px ui-monospace, monospace; background: var(--parch); color: v
         const before = this.st.turn;
         this.st = Rules.failMove(this.st, m);
         if (this.st.fell) this.taken[Rules.other(before)].push(Rules.typeOf(m.piece));
+        // the failed capture was the way out of check: the king is still attacked, so it is taken
+        if (Rules.inCheck(this.st, before)) {
+          this.sans.push(san.replace(/[+#]$/, '') + '✗');
+          this.taken[Rules.other(before)].push('k');
+          this.last = { from: m.from, to: m.to, failed: true, fell: this.st.fell };
+          this.end(Rules.other(before), (before === 'w' ? 'White' : 'Black') + "'s king was taken");
+          return;
+        }
       }
       this.sans.push(won ? san : san.replace(/[+#]$/, '') + '✗');
       this.last = { from: m.from, to: m.to, failed: !won, fell: !won && this.st.fell };

@@ -225,6 +225,8 @@
   }
   // result for the side to move: null while play goes on
   function status(st) {
+    // a side without a king has lost it (can only happen if a king was taken)
+    for (const c of ['w', 'b']) if (kingSq(st.b, c) < 0) return { over: true, result: other(c), reason: 'king taken' };
     const moves = legalMoves(st), chk = inCheck(st);
     if (!moves.length) return chk ? { over: true, result: other(st.turn), reason: 'checkmate' } : { over: true, result: 'draw', reason: 'stalemate' };
     if (insufficient(st.b)) return { over: true, result: 'draw', reason: 'insufficient material' };
